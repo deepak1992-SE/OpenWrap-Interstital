@@ -1,0 +1,172 @@
+<!DOCTYPE HTML>
+<html lang="en-us">
+<head>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Wrapper Tag GPT Async Demo with TAM</title>
+    <h4>GPT implementation is ASYNC SRA <a href="https://support.google.com/dfp_premium/answer/1638622?hl=en">(Refer
+            this for types of GPT Tags)</a></h4>
+    <!-- OpwenWrap Script begins here -->
+    <!-- 
+        CORS ISSUE FIX:
+        If you're getting CORS errors, you need to update your PubMatic profile configuration
+        to allow your domain (e.g., www.abplive.com) in the PubMatic dashboard.
+        The current configuration only allows: http://127.0.0.1:5500 (local dev server)
+        
+        To fix: Log into PubMatic dashboard -> Update profile 167180/18797 -> 
+        Add your production domain to the allowed origins list.
+    -->
+    <script type="text/javascript">
+        var PWT = {};
+        var googletag = googletag || {};
+        googletag.cmd = googletag.cmd || [];
+        var gptRan = false;
+        PWT.jsLoaded = function () {
+            loadGpt();
+        };
+        (function () {
+            var purl = window.location.href;
+            var url = '//ads.pubmatic.com/AdServer/js/pwt/167180/18797';
+            var profileVersionId = '';
+            if (purl.indexOf('pwtv=') > 0) {
+                var regexp = /pwtv=(.*?)(&|$)/g;
+                var matches = regexp.exec(purl);
+                if (matches.length >= 2 && matches[1].length > 0) {
+                    profileVersionId = '/' + matches[1];
+                }
+            }
+            var wtads = document.createElement('script');
+            wtads.async = true;
+            wtads.type = 'text/javascript';
+            wtads.src = url + profileVersionId + '/pwt.js';
+            wtads.onerror = function() {
+                console.warn('PubMatic script failed to load. This may be due to CORS restrictions. Please ensure your domain is whitelisted in PubMatic profile configuration.');
+                // Still load GPT even if PubMatic fails
+                loadGpt();
+            };
+            var node = document.getElementsByTagName('script')[0];
+            node.parentNode.insertBefore(wtads, node);
+        })();
+        var loadGpt = function () {
+            // Check the gptRan flag
+            if (!gptRan) {
+                gptRan = true;
+                var gads = document.createElement('script');
+                var useSSL = 'https:' == document.location.protocol;
+                gads.src = (useSSL ? 'https:' : 'http:') + '//securepubads.g.doubleclick.net/tag/js/gpt.js';
+                var node = document.getElementsByTagName('script')[0];
+                node.parentNode.insertBefore(gads, node);
+            }
+        }
+        // Failsafe to call gpt
+        setTimeout(loadGpt, 1000);
+    </script>
+    <!--Wrapper Script ends here -->
+    <script type="text/javascript">
+        // this function will act as a lock and will call the GPT API
+        function initAdserver(forced) {
+            if ((forced === true && window.initAdserverFlag !== true) || (PWT.TAM_BidsReceived && PWT.ow_BidsReceived)) {
+                window.initAdserverFlag = true;
+                PWT.TAM_BidsReceived = PWT.ow_BidsReceived = false;
+                googletag.pubads().refresh();
+            }
+        }
+    </script>
+    <!-- TAM Script Start -->
+    <!-- <script>
+        !function (TAM, a, p, s, t, A, g) { if (a[TAM]) return; function q(c, r) { a[TAM]._Q.push([c, r]) } a[TAM] = { init: function () { q("i", arguments) }, fetchBids: function () { q("f", arguments) }, setDisplayBids: function () { }, _Q: [] }; A = p.createElement(s); A.async = !0; A.src = t; g = p.getElementsByTagName(s)[0]; g.parentNode.insertBefore(A, g) }("apstag", window, document, "script", "//c.amazon-adsystem.com/aax2/apstag.js");
+        apstag.init({
+            pubID: 'xxxx',
+            adServer: 'googletag'
+        });
+        apstag.fetchBids({
+            slots: [{
+                slotID: 'Div2',
+                sizes: [[300, 250], [300, 600]]
+            },
+            {
+                slotID: 'Div1',
+                sizes: [[728, 90]]
+            }],
+            timeout: 2e3 // Make Sure this timeout is less than or equal to OpenWrap TimeOut
+        }, function (bids) {
+            googletag.cmd.push(function () {
+                apstag.setDisplayBids();
+                PWT.TAM_BidsReceived = true;
+                initAdserver(false);
+            });
+        });
+    </script> -->
+    <!-- TAM Script End -->
+    <script type="text/javascript">
+        googletag.cmd.push(function () {
+            // Web Interstitial Ad Slot
+            var s1 = googletag.defineOutOfPageSlot(
+                "/23202412718/rediads_PBS_test_intersitial/web_intersitial",
+                googletag.enums.OutOfPageFormat.INTERSTITIAL
+            );
+            if (s1) {
+                s1.addService(googletag.pubads());
+                s1.setTargeting('abc', 123);
+            }
+            var s2 = googletag.defineSlot('/23202412718/rediads_PBS_test_intersitial/supporting_actor', [
+                 [300, 600]
+            ], 'Div2').addService(googletag.pubads());
+            s2.setTargeting('2abc', 123);
+            // common targetings
+            googletag.pubads().setTargeting('v', 'classifieds');
+            googletag.pubads().setTargeting('article-id', '65207');
+            googletag.pubads().enableSingleRequest();
+            googletag.pubads().disableInitialLoad();
+            googletag.enableServices();
+            // OpenWrap code START here
+            if (typeof PWT.requestBids === 'function') {
+                PWT.requestBids(
+                    PWT.generateConfForGPT(googletag.pubads().getSlots()),
+                    function (adUnitsArray) {
+                        PWT.addKeyValuePairsToGPTSlots(adUnitsArray);
+                        PWT.ow_BidsReceived = true;
+                        initAdserver(false);
+                    }
+                );
+            }
+            // No need to handle "else" part as we have TAM wrapper on page
+            // OpenWrap code END here
+            var FAILSAFE_TIMEOUT = 1000; // this timeout should be more than OpenWrap and TAM timeout
+            setTimeout(function () {
+                initAdserver(true); // calling this function with forced mode set to true so that GPT API is always executed
+            }, FAILSAFE_TIMEOUT);
+        });
+    </script>
+</head>
+<body style='background-color:whitesmoke;'>
+    <br><br>
+    <!-- Web Interstitial Trigger Link -->
+    <p style="padding: 20px; background-color: #f0f0f0; border: 2px solid #333; margin: 20px;">
+        <strong>Test Web Interstitial:</strong> Click the link below to trigger the web interstitial ad:<br>
+        <a href="https://www.example.com" style="color: #0066cc; font-size: 18px; text-decoration: underline;">Click here to navigate (triggers interstitial)</a>
+    </p>
+    <br><br>
+    <!-- DMDemo -->
+    Adslot : /1019334/GULFNEWS/Gulfnews_ATF/gulfnews_home_atf/gulfnews_home_right_atf
+    <br>
+    <div id='Div1'>
+        <script>
+            googletag.cmd.push(function () {
+                googletag.display("Div1");
+            });
+        </script>
+    </div>
+    <br><br>
+    <!-- DMDemo1 -->
+    Adslot : /1019334/GULFNEWS/Gulfnews_ATF/gulfnews_home_atf/gulfnews_home_top_atf
+    <br>
+    <div id='Div2'>
+        <script>
+            googletag.cmd.push(function () {
+                googletag.display("Div2");
+            });
+        </script>
+    </div>
+</body>
+</html>

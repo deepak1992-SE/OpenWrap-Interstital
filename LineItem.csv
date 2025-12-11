@@ -1,3 +1,10 @@
 start_range,end_range,granularity,"rate_id[1=Average, 2=Minimum] "
-1,5,1,1
-5,10,-1,1
+0.1,1,0.01,2
+
+
+
+
+
+
+
+

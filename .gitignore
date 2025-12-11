@@ -7,3 +7,10 @@ googleads.yaml
 secret-files.tar
 *.pyc
 local_settings.py
+
+# Generated files and logs
+*.log
+*.db
+.idea/
+.DS_Store
+__pycache__/

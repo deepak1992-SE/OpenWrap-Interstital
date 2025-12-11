@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - PubMatic Internal Team</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .login-header h1 {
+            color: #1e3a5f !important;
+            font-weight: 700;
+        }
+        .login-header .subtitle,
+        .internal-team-badge {
+            color: #555 !important;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <div class="pubmatic-logo">
+    <img src="https://pubmatic.com/wp-content/themes/pubmatic/imgs/logo-black.svg" alt="PubMatic Logo" onerror="this.style.display='none'">
+</div>
+<h1>DFP Line Item Generator<span class="internal-team-badge">Internal Team</span></h1>
+                <p class="subtitle">Welcome back! Please log in to continue</p>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <form method="POST" action="/login" class="login-form">
+                <div class="form-group">
+                    <label for="username">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        Username
+                    </label>
+                    <input type="text" id="username" name="username" required autofocus placeholder="Enter your username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        Password
+                    </label>
+                    <input type="password" id="password" name="password" required placeholder="Enter your password">
+                </div>
+                
+                <button type="submit" class="btn-primary btn-login">
+                    <span>Login</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+            </form>
+            
+            <div class="login-footer">
+                <p>Don't have an account? <a href="{{ url_for('signup') }}" class="signup-link">Sign up here</a></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

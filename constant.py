@@ -1,6 +1,7 @@
 #creative type constants
 WEB="WEB"
 WEB_SAFEFRAME="WEB_SAFEFRAME"
+WEBINTERSTITIAL="WEBINTERSTITIAL"
 AMP="AMP"
 IN_APP="IN_APP"
 IN_APP_VIDEO="IN_APP_VIDEO"
@@ -39,5 +40,11 @@ JWP_VAST_URL = 'https://vpb-cache.jwplayer.com/cache?uuid=%%PATTERN:vpb_pubmatic
 JWP_DURATION = 60000
 
 LINE_ITEMS_LIMIT = 450
+
+# Line item creation batch size (for API calls)
+# Smaller batches = faster per batch, more reliable, but more API calls
+# Recommended: 50-100 for PythonAnywhere (each batch completes in 1-2 minutes)
+# This prevents timeout issues on platforms with request time limits
+LINE_ITEM_API_BATCH_SIZE = 100  # Items per API call
 
 DEFAULT_APDOD_CACHE_URL = 'https://ow.pubmatic.com'

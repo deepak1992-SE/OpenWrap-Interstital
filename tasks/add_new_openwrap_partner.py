@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import sys
+import uuid
 import tasks
 from builtins import input
 from pprint import pprint
@@ -33,21 +34,21 @@ import dfp.get_device_capabilities
 import dfp.get_orders
 import dfp.get_line_items
 from dfp.exceptions import (
-  BadSettingException,
-  MissingSettingException,
-  DFPException
+    BadSettingException,
+    MissingSettingException,
+    DFPException
 )
 from tasks.price_utils import (
-  get_prices_array,
-  get_prices_summary_string,
-  num_to_micro_amount,
-  micro_amount_to_num,
-  num_to_str,
+    get_prices_array,
+    get_prices_summary_string,
+    num_to_micro_amount,
+    micro_amount_to_num,
+    num_to_str,
 )
 from tasks.dfp_utils import (
-  TargetingKeyGen,
-  DFPValueIdGetter,
-  get_or_create_dfp_targeting_key
+    TargetingKeyGen,
+    DFPValueIdGetter,
+    get_or_create_dfp_targeting_key
 )
 
 from urllib.request import urlopen
@@ -57,7 +58,6 @@ from dfp.client import get_client
 from requests.exceptions import ConnectionError
 from googleads.errors import GoogleAdsServerFault
 
-
 order_list = []
 
 # Colorama for cross-platform support for colored logging.
@@ -66,30 +66,32 @@ init()
 
 # Configure logging.
 if 'DISABLE_LOGGING' in os.environ and os.environ['DISABLE_LOGGING'] == 'true':
-  logging.disable(logging.CRITICAL)
-  logging.getLogger('googleads').setLevel(logging.CRITICAL)
-  logging.getLogger('oauth2client').setLevel(logging.CRITICAL)
+    logging.disable(logging.CRITICAL)
+    logging.getLogger('googleads').setLevel(logging.CRITICAL)
+    logging.getLogger('oauth2client').setLevel(logging.CRITICAL)
 else:
-  FORMAT = '%(message)s'
-  logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=FORMAT)
-  logging.getLogger('googleads').setLevel(logging.ERROR)
-  logging.getLogger('oauth2client').setLevel(logging.ERROR)
-  logging.getLogger(__name__).setLevel(logging.DEBUG)
+    FORMAT = '%(message)s'
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=FORMAT)
+    logging.getLogger('googleads').setLevel(logging.ERROR)
+    logging.getLogger('oauth2client').setLevel(logging.ERROR)
+    logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
 creativetype_platform_map = {
     constant.WEB: "display",
     constant.WEB_SAFEFRAME: "display",
+    constant.WEBINTERSTITIAL: "display",
     constant.AMP: "amp",
     constant.IN_APP: "inapp",
     constant.IN_APP_VIDEO: "inapp",
     constant.IN_APP_NATIVE: "inapp",
     constant.NATIVE: "native",
-    constant.VIDEO : "video",
-    constant.ADPOD : "video",
-    constant.JW_PLAYER : "jwp"
+    constant.VIDEO: "video",
+    constant.ADPOD: "video",
+    constant.JW_PLAYER: "jwp"
 }
+
 
 class OpenWrapTargetingKeyGen(TargetingKeyGen):
     def __init__(self):
@@ -106,7 +108,7 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
         self.bid_price = None
         self.price_set = None
         self.pwtpid_key_id = None
-        self.pwtbst_key_id  = None  
+        self.pwtbst_key_id = None
         self.pwtecp_key_id = None
         self.pwtplt_key_id = None
         self.BidderValueGetter = None
@@ -118,12 +120,13 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
         self.pwtbst_value_id = None
         self.deal_tier = None
         self.dealids = None
-    def init_keys(self):  
+
+    def init_keys(self):
         # Get DFP key IDs for line item targeting.
         self.pwtpid_key_id = get_or_create_dfp_targeting_key('pwtpid', key_type='PREDEFINED')  # bidder
         self.pwtbst_key_id = get_or_create_dfp_targeting_key('pwtbst', key_type='PREDEFINED')  # is pwt
-        self.pwtecp_key_id = get_or_create_dfp_targeting_key('pwtecp', key_type='FREEFORM') # price
-        self.pwtplt_key_id = get_or_create_dfp_targeting_key('pwtplt', key_type='PREDEFINED') # platform
+        self.pwtecp_key_id = get_or_create_dfp_targeting_key('pwtecp', key_type='FREEFORM')  # price
+        self.pwtplt_key_id = get_or_create_dfp_targeting_key('pwtplt', key_type='PREDEFINED')  # platform
 
         # Instantiate DFP targeting value ID getters for the targeting keys.
         self.BidderValueGetter = DFPValueIdGetter('pwtpid')
@@ -131,36 +134,37 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
         self.PriceValueGetter = DFPValueIdGetter('pwtecp', match_type='PREFIX')
         self.PltValueGetter = DFPValueIdGetter('pwtplt')
 
-        self.pwtbst_value_id = self.BstValueGetter.get_value_id("1")    
+        self.pwtbst_value_id = self.BstValueGetter.get_value_id("1")
 
-    # Add creative level targeting for each creative duration for each adpod slot
+        # Add creative level targeting for each creative duration for each adpod slot
+
     # ex: s1_pwtdur = 10
     def set_creative_targeting(self, durations, slot):
         self.creativeTargeting = {}
-        key = '{}_pwtdur'.format(slot)   
+        key = '{}_pwtdur'.format(slot)
         key_id = get_or_create_dfp_targeting_key(key, key_type='FREEFORM')
-        value_getter = DFPValueIdGetter(key) 
-        for dur in durations:         
+        value_getter = DFPValueIdGetter(key)
+        for dur in durations:
             value_id = value_getter.get_value_id(str(dur))
             custom_criteria = {
                 'xsi_type': 'CustomCriteria',
                 'keyId': key_id,
                 'valueIds': [value_id],
                 'operator': 'IS'
-            }     
-            self.creativeTargeting[dur]  = {
+            }
+            self.creativeTargeting[dur] = {
                 'xsi_type': 'CustomCriteriaSet',
                 'logicalOperator': 'OR',
                 'children': [custom_criteria]
             }
-            
-    def get_creative_targeting(self, duration):    
+
+    def get_creative_targeting(self, duration):
         return self.creativeTargeting[duration]
-    
+
     def set_deal_tier(self, slot, deal_tier):
-        key = '{}_pwtdt'.format(slot)   
+        key = '{}_pwtdt'.format(slot)
         key_id = get_or_create_dfp_targeting_key(key, key_type='FREEFORM')
-        value_getter = DFPValueIdGetter(key)  
+        value_getter = DFPValueIdGetter(key)
         value_id = value_getter.get_value_id(deal_tier)
         self.deal_tier = {
             'xsi_type': 'CustomCriteria',
@@ -170,9 +174,9 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
         }
 
     def set_dealids(self, slot, deal_id):
-        key = '{}_pwtdid'.format(slot)   
+        key = '{}_pwtdid'.format(slot)
         key_id = get_or_create_dfp_targeting_key(key, key_type='FREEFORM')
-        value_getter = DFPValueIdGetter(key)  
+        value_getter = DFPValueIdGetter(key)
         value_id = value_getter.get_value_id(deal_id)
         self.dealids = {
             'xsi_type': 'CustomCriteria',
@@ -182,10 +186,10 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
         }
 
     # Set pwtpb custom targeting key
-    def set_bid_price(self, slot,price):
-        key = '{}_pwtpb'.format(slot)   
+    def set_bid_price(self, slot, price):
+        key = '{}_pwtpb'.format(slot)
         key_id = get_or_create_dfp_targeting_key(key, key_type='FREEFORM')
-        value_getter = DFPValueIdGetter(key)  
+        value_getter = DFPValueIdGetter(key)
         value_id = value_getter.get_value_id(price)
         self.bid_price = {
             'xsi_type': 'CustomCriteria',
@@ -200,10 +204,10 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
         if bidder_code == None:
             self.bidder_criteria = None
             return
-        
+
         if self.setup_type is constant.ADPOD:
-            bidderKey = '{}_pwtpid'.format(slot)   
-            self.pwtpid_key_id  =  get_or_create_dfp_targeting_key( bidderKey , key_type='PREDEFINED') 
+            bidderKey = '{}_pwtpid'.format(slot)
+            self.pwtpid_key_id = get_or_create_dfp_targeting_key(bidderKey, key_type='PREDEFINED')
             self.BidderValueGetter = DFPValueIdGetter(bidderKey)
 
         if isinstance(bidder_code, (list, tuple)):
@@ -225,10 +229,10 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
                 'children': bidder_criteria
             }
         else:
-            self.bidder_criteria  = {
+            self.bidder_criteria = {
                 'xsi_type': 'CustomCriteria',
                 'keyId': self.pwtpid_key_id,
-                'valueIds': [self.BidderValueGetter.get_value_id(bidder_code) ],
+                'valueIds': [self.BidderValueGetter.get_value_id(bidder_code)],
                 'operator': 'IS'
             }
 
@@ -272,21 +276,33 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
                     'children': value_criterias
                 }
             else:
-                one_custom_criteria  = {
+                one_custom_criteria = {
                     'xsi_type': 'CustomCriteria',
                     'keyId': key_id,
-                    'valueIds': [value_getter.get_value_id(cc[2]) ],
+                    'valueIds': [value_getter.get_value_id(cc[2])],
                     'operator': cc[1]
                 }
 
             self.custom_targeting.append(one_custom_criteria)
 
     def set_price_value(self, price_obj):
-        self.price_els = self.process_price_bucket(price_obj['start'], price_obj['end'], price_obj['granularity'])
+        # FIXED: Only use the specific price rate for this line item, not the entire bucket range
+        # This prevents adding hundreds of targeting expressions per line item
+        # Each line item should only target its own price value
+        from tasks.price_utils import num_to_str
+        price_str = num_to_str(price_obj['rate'], precision=2)
+        # Format to match OpenWrap targeting format (e.g., "5.00" -> "5.")
+        # Remove trailing zeros and add period if needed
+        if price_str.endswith('0'):
+            price_str = price_str[:-1]
+        if not price_str.endswith('.'):
+            price_str = price_str + '.'
+        # Only use the specific price value, not the entire bucket range
+        self.price_els = [price_str]
 
     def set_platform_targetting(self):
 
-        #get platform value from the creative type
+        # get platform value from the creative type
         platform = creativetype_platform_map[self.setup_type]
         platform_value_id = self.PltValueGetter.get_value_id(platform)
         self.platform_criteria = {
@@ -295,7 +311,6 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
             'valueIds': [platform_value_id],
             'operator': 'IS'
         }
-
 
     def get_dfp_targeting(self):
 
@@ -309,7 +324,7 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
         pwt_bst_criteria = {
             'xsi_type': 'CustomCriteria',
             'keyId': self.pwtbst_key_id,
-            'valueIds': [self.pwtbst_value_id ],
+            'valueIds': [self.pwtbst_value_id],
             'operator': 'IS'
         }
 
@@ -318,7 +333,7 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
         price_key_id = self.pwtecp_key_id
         price_value_getter = self.PriceValueGetter
 
-        #for JW player set key to 'vpb_pubmatic_bid' for price targetting
+        # for JW player set key to 'vpb_pubmatic_bid' for price targetting
         if self.setup_type == constant.JW_PLAYER:
             price_key_id = self.jw_price_key_id
             price_value_getter = self.jwPriceValueGetter
@@ -328,7 +343,7 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
                 value_id = price_value_getter.get_value_id(p)
                 custom_criteria = {
                     'xsi_type': 'CustomCriteria',
-                    'keyId': price_key_id ,
+                    'keyId': price_key_id,
                     'valueIds': [value_id],
                     'operator': 'IS'
                 }
@@ -340,38 +355,38 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
                 'children': price_value_ids
             }
 
-        #pwtpid
+        # pwtpid
         if self.bidder_criteria:
             top_set['children'].append(self.bidder_criteria)
 
-        #pwtecp
+        # pwtecp
         if self.price_set:
             top_set['children'].append(self.price_set)
 
-        #pwtdt
-        if  self.deal_tier:
+        # pwtdt
+        if self.deal_tier:
             top_set['children'].append(self.deal_tier)
-        
-        #pwtdid
-        if  self.dealids:
+
+        # pwtdid
+        if self.dealids:
             top_set['children'].append(self.dealids)
 
         # dont set other targetting for JW Player
         if self.setup_type is not constant.JW_PLAYER:
 
             if self.setup_type not in (constant.ADPOD, constant.IN_APP, constant.IN_APP_VIDEO, constant.IN_APP_NATIVE):
-                #pwtbst
+                # pwtbst
                 top_set['children'].append(pwt_bst_criteria)
 
-            #pwtplt
+            # pwtplt
             if self.platform_criteria:
                 top_set['children'].append(self.platform_criteria)
 
-            #custom targetting
+            # custom targetting
             if len(self.custom_targeting) > 0:
                 top_set['children'].extend(self.custom_targeting)
 
-            if self.bid_price: 
+            if self.bid_price:
                 top_set['children'].append(self.bid_price)
 
         return top_set
@@ -392,44 +407,44 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
         r = (granu * 100) % 10
         k = start_index
 
-        while round(k,2) < round(end_index,2):
+        while round(k, 2) < round(end_index, 2):
 
-            #logger.debug("k: {}  end_index: {}".format(k, end_index))
+            # logger.debug("k: {}  end_index: {}".format(k, end_index))
             # if k=1.25 then reminder is 5>0 and for .20 its 0
-            if round(k*100) % 10 > 0 or sub_granu == 0.01:
+            if round(k * 100) % 10 > 0 or sub_granu == 0.01:
                 if r >= 0:
-                    #suppose start_index=0.33 and $end=0.40
+                    # suppose start_index=0.33 and $end=0.40
                     end = None
                     if sub_granu < 0.10:
-                        end = k+(granu*100)%10/100
+                        end = k + (granu * 100) % 10 / 100
                     else:
-                        end = k+(10-(round(k*100)%10))/100
+                        end = k + (10 - (round(k * 100) % 10)) / 100
 
                     if end >= end_index:
                         end = end_index
 
-                    #TODO
+                    # TODO
                     if k == 0 and sub_granu == 0.01:
                         k = 0.01
 
                     v = k
-                    while round(v,2) < round(end,2):
+                    while round(v, 2) < round(end, 2):
                         v_str = "{0:.2f}".format(v)
-                        #logger.debug("----First---- Custom criteria for Line Item is =  %s", v_str)
+                        # logger.debug("----First---- Custom criteria for Line Item is =  %s", v_str)
                         subCustomValueArray.append(v_str)
                         v = v + 0.01
 
                     if end + 0.10 <= end_index:
-                        k = k + (10-(round(k*100)%10))/100
+                        k = k + (10 - (round(k * 100) % 10)) / 100
                     else:
                         k = end
 
-                else: # if r >= 0:
-                    #logger.debug("----Second---- Custom criteria for Line Item is =  %f", k)
+                else:  # if r >= 0:
+                    # logger.debug("----Second---- Custom criteria for Line Item is =  %f", k)
                     subCustomValueArray.append(k)
                     k = k + sub_granu
-            else: # if round(k*100)%10) > 0 or sub_granu == 0.01
-                if r > 0 and round(k+sub_granu,2) > round(end_index,2):
+            else:  # if round(k*100)%10) > 0 or sub_granu == 0.01
+                if r > 0 and round(k + sub_granu, 2) > round(end_index, 2):
                     # To create the custom value from 10 to granularity which can .5, so 10-14
                     g = None
                     if granu > 1:
@@ -438,16 +453,16 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
                         g = 0.01
 
                     v = k
-                    while round(v,2) < round(end_index,2):
+                    while round(v, 2) < round(end_index, 2):
                         temp = v
                         if granu > 1:
                             temp = round(temp, 1)
                         else:
                             temp = round(temp, 2)
 
-                        if v+g > end_index and round(v+g,2) != round(end_index,2):
+                        if v + g > end_index and round(v + g, 2) != round(end_index, 2):
                             subCustomValueArray.append("{0:.2f}".format(temp))
-                            #logger.debug("----Third---- Custom criteria for Line Item is =  %.2f", subCustomValueArray[-1])
+                            # logger.debug("----Third---- Custom criteria for Line Item is =  %.2f", subCustomValueArray[-1])
                             g = 0.01
                             v = v + g
                             continue
@@ -457,11 +472,11 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
                         else:
                             subCustomValueArray.append("{0:.2f}".format(v))
 
-                        #logger.debug("----Third---- Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
+                        # logger.debug("----Third---- Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
                         v = v + g
 
                     k = k + sub_granu
-                elif k == 0: # if r > 0 and round(k+sub_granu,2) > round(end_index,2)
+                elif k == 0:  # if r > 0 and round(k+sub_granu,2) > round(end_index,2)
                     vEnd = None
                     if sub_granu < 0.10:
                         vEnd = granu
@@ -469,278 +484,310 @@ class OpenWrapTargetingKeyGen(TargetingKeyGen):
                         vEnd = 0.10
 
                     v = 0.01
-                    while v <= vEnd-0.01:
-                        subCustomValueArray.append(str(round(v,2)))
-                        #logger.debug("----Fourth---- Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
+                    while v <= vEnd - 0.01:
+                        subCustomValueArray.append(str(round(v, 2)))
+                        # logger.debug("----Fourth---- Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
                         v = v + 0.01
 
                     k = k + vEnd
                 else:
                     if sub_granu != 1:
-                        k = round(k,1)
+                        k = round(k, 1)
 
-                    if ((round(k*10)) % 10 != 0 or sub_granu ==0.10) and (round(k+sub_granu,2) <= round(end_index,2)):
-                        subCustomValueArray.append(str(round(k,2)))
-                        #logger.debug("----fifth----1 Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
-                    elif (k+sub_granu > end_index and granu == 1) or (granu> 1 and k + sub_granu >end_index):
+                    if ((round(k * 10)) % 10 != 0 or sub_granu == 0.10) and (
+                            round(k + sub_granu, 2) <= round(end_index, 2)):
+                        subCustomValueArray.append(str(round(k, 2)))
+                        # logger.debug("----fifth----1 Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
+                    elif (k + sub_granu > end_index and granu == 1) or (granu > 1 and k + sub_granu > end_index):
                         subCustomValueArray.append("{0:.1f}".format(k))
-                        #logger.debug("----fifth----2 Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
-                    elif sub_granu == 0.10 and round(k+sub_granu,2) > round(end_index,2) and end_index*100%10 >0:
+                        # logger.debug("----fifth----2 Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
+                    elif sub_granu == 0.10 and round(k + sub_granu, 2) > round(end_index,
+                                                                               2) and end_index * 100 % 10 > 0:
                         subCustomValueArray.append("{0:.2f}".format(k))
-                        #logger.debug("----fifth----2.5 Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
+                        # logger.debug("----fifth----2.5 Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
                     else:
                         subCustomValueArray.append("{0}.".format(int(k)))
-                        #logger.debug("----fifth----3 Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
+                        # logger.debug("----fifth----3 Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
 
-                    if k >= 1 and round(k*10)%10==0 and k+sub_granu <= end_index: #if $k=2 and end range is 2.57 then it should not increment to 3 while granu is 1
-                        k = k+sub_granu
-                    elif sub_granu == 0.10 and (round(k+sub_granu,2) > round(end_index,2) and end_index*100%10 > 0): #$end_index*100%10>0 and $sub_granu==0.10 and $k+$sub_granu>$end_index)
+                    if k >= 1 and round(
+                            k * 10) % 10 == 0 and k + sub_granu <= end_index:  # if $k=2 and end range is 2.57 then it should not increment to 3 while granu is 1
+                        k = k + sub_granu
+                    elif sub_granu == 0.10 and (round(k + sub_granu, 2) > round(end_index,
+                                                                                2) and end_index * 100 % 10 > 0):  # $end_index*100%10>0 and $sub_granu==0.10 and $k+$sub_granu>$end_index)
                         k = k + 0.01
                     else:
-                        k = round(k,2) + 0.10
+                        k = round(k, 2) + 0.10
 
-                    if (round(k,2) != round(end_index,2)) and (round(k+0.10,2) != round (end_index,2)) and ((k+0.10 > end_index and granu == 1) or (k + 0.10 > end_index and granu>1)):
+                    if (round(k, 2) != round(end_index, 2)) and (round(k + 0.10, 2) != round(end_index, 2)) and (
+                            (k + 0.10 > end_index and granu == 1) or (k + 0.10 > end_index and granu > 1)):
                         subCustomValueArray.append("{0:.2f}".format(k))
-                        #logger.debug("----fifth----4 Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
+                        # logger.debug("----fifth----4 Custom criteria for Line Item is =  %s", subCustomValueArray[-1])
                         k = k + 0.01
-        logger.debug("Custom price targetting for each lineitem: {}".format( subCustomValueArray))
+        logger.debug("Custom price targetting for each lineitem: {}".format(subCustomValueArray))
         return subCustomValueArray
 
+
 def setup_partner(user_email, advertiser_name, advertiser_type, order_name, placements,
-     sizes, lineitem_type, lineitem_prefix, bidder_code, prices, setup_type, creative_template, num_creatives, use_1x1,
-     currency_code, custom_targeting, same_adv_exception, device_categories, device_capabilities, roadblock_type, slot , adpod_creative_durations, creative_user_def_var, deal_config, deal_lineitem_enabled, deal_config_type, video_position_type):
-  """
-  Call all necessary DFP tasks for a new Prebid partner setup.
-  """
+                  sizes, lineitem_type, lineitem_prefix, bidder_code, prices, setup_type, creative_template,
+                  num_creatives, use_1x1,
+                  currency_code, custom_targeting, same_adv_exception, device_categories, device_capabilities,
+                  roadblock_type, slot, adpod_creative_durations, creative_user_def_var, deal_config,
+                  deal_lineitem_enabled, deal_config_type, video_position_type):
+    """
+    Call all necessary DFP tasks for a new Prebid partner setup.
+    """
 
-  order_count = 1
-  total_lineitem_count = 0
-  slot_order_name = ''
-  order_id = 0
+    order_count = 1
+    total_lineitem_count = 0
+    slot_order_name = ''
+    order_id = 0
 
-  # Get the user.
-  user_id = dfp.get_users.get_user_id_by_email(user_email)
+    # Get the user.
+    user_id = dfp.get_users.get_user_id_by_email(user_email)
 
-  # Get the placement IDs.
-  placement_ids = None
-  ad_unit_ids = None
-  if len(placements) > 0:
-      placement_ids = dfp.get_placements.get_placement_ids_by_name(placements)
-  else:
-      # Run of network
-      root_id = dfp.get_root_ad_unit_id.get_root_ad_unit_id()
-      ad_unit_ids = [ root_id ]
+    # Get the placement IDs.
+    placement_ids = None
+    ad_unit_ids = None
+    if len(placements) > 0:
+        placement_ids = dfp.get_placements.get_placement_ids_by_name(placements)
+    else:
+        # Run of network
+        root_id = dfp.get_root_ad_unit_id.get_root_ad_unit_id()
+        ad_unit_ids = [root_id]
 
-  # Get the device category IDs
-  # Dont get device categories for in-app and jwplayer platform
-  device_category_ids = None
-  if device_categories != None and setup_type not in (constant.IN_APP, constant.IN_APP_VIDEO, constant.IN_APP_NATIVE, constant.JW_PLAYER):
-      device_category_ids = []
-      if isinstance(device_categories, str):
-          device_categories = (device_categories)
+    # Get the device category IDs
+    # Dont get device categories for in-app and jwplayer platform
+    device_category_ids = None
+    if device_categories != None and setup_type not in (
+    constant.IN_APP, constant.IN_APP_VIDEO, constant.IN_APP_NATIVE, constant.JW_PLAYER):
+        device_category_ids = []
+        if isinstance(device_categories, str):
+            device_categories = (device_categories)
 
-      dc_map = dfp.get_device_categories.get_device_categories()
+        dc_map = dfp.get_device_categories.get_device_categories()
 
-      for dc in device_categories:
-          if dc in dc_map:
-              device_category_ids.append(dc_map[dc])
-          else:
-              raise BadSettingException("Invalid Device Cagetory: {} ".format(dc))
+        for dc in device_categories:
+            if dc in dc_map:
+                device_category_ids.append(dc_map[dc])
+            else:
+                raise BadSettingException("Invalid Device Cagetory: {} ".format(dc))
+
+    # get device capabilty ids for in-APP platform
+    device_capability_ids = None
+    if device_capabilities != None and setup_type in (constant.IN_APP, constant.IN_APP_VIDEO, constant.IN_APP_NATIVE):
+        device_capability_ids = []
+        if isinstance(device_capabilities, str):
+            device_capabilities = (device_capabilities)
+
+        dc_map = dfp.get_device_capabilities.get_device_capabilities()
+
+        for dc in device_capabilities:
+            if dc in dc_map:
+                device_capability_ids.append(dc_map[dc])
+            else:
+                raise BadSettingException("Invalid Device Capability: {} ".format(dc))
+
+    # Get (or potentially create) the advertiser.
+    advertiser_id = dfp.get_advertisers.get_advertiser_id_by_name(
+        advertiser_name, advertiser_type)
+
+    if setup_type == constant.ADPOD and deal_lineitem_enabled == False:
+        order = get_existing_order_details(slot, order_name)
+        order_id = order['id']
+        total_lineitem_count = order['lic']
+        order_count = order['order_count']
+
+        if order_id != 0 and total_lineitem_count > 0:
+            logger.info(
+                'Using existing order with name "{name}".'.format(name=order['name']))
+            order_list.append(order['name'])
+
+        for p in prices:
+            if total_lineitem_count % constant.LINE_ITEMS_LIMIT == 0:
+                slot_order_name = str(slot) + "_" + str(order_count) + "_" + order_name
+                order_count = order_count + 1
+                order_id = dfp.create_orders.create_order(slot_order_name, advertiser_id, user_id)
+                order_list.append(slot_order_name)
+            p['order_id'] = order_id
+            total_lineitem_count = total_lineitem_count + 1
+    else:
+        order_id = dfp.create_orders.create_order(order_name, advertiser_id, user_id)
+
+    # Create creatives.
+    # Get creative template for native platform
+    creative_template_ids = None
+    if setup_type == constant.NATIVE or setup_type == constant.IN_APP_NATIVE:
+        creative_template_ids = dfp.get_creative_template.get_creative_template_ids_by_name(creative_template)
+
+    # if bidder is None, then bidder will be 'All'
+    bidder_str = bidder_code
+    if bidder_str == None:
+        bidder_str = "All"
+    elif isinstance(bidder_str, (list, tuple)):
+        bidder_str = "_".join(bidder_str)
+
+    # generate unique id that will be used for creative and line item naming
+    unique_id = get_unique_id(setup_type)
+
+    # Suffix per run to keep line item names unique when reusing existing orders
+    lineitem_suffix = f"_{uuid.uuid4().hex[:6]}"
+
+    # create creatives
+    if setup_type == 'ADPOD':
+        logger.info('\nCreating creatives for slot {}...'.format(slot))
+    else:
+        logger.info("\ncreating creatives...")
+
+    size_arg = sizes
+    if use_1x1:
+        size_arg = None
+
+    creative_configs = get_creative_config(setup_type, bidder_str, order_name, advertiser_id, size_arg, num_creatives,
+                                           creative_template_ids, prefix=unique_id,
+                                           adpod_creative_durations=adpod_creative_durations, slot=slot,
+                                           creative_user_def_var=creative_user_def_var)
+    creative_ids = dfp.create_creatives.create_creatives(creative_configs)
+
+    # if platform is video, create creative sets
+    if setup_type in (constant.VIDEO, constant.IN_APP_VIDEO, constant.JW_PLAYER):
+        creative_set_configs = dfp.create_creative_sets.create_creative_set_config(creative_ids, sizes, unique_id)
+        creative_ids = dfp.create_creative_sets.create_creative_sets(creative_set_configs)
+    if setup_type == constant.ADPOD:
+        creative_set_configs = dfp.create_creative_sets.create_creative_set_config_adpod(creative_ids, sizes, unique_id,
+                                                                                         adpod_creative_durations, slot)
+        creative_ids = dfp.create_creative_sets.create_creative_sets(creative_set_configs)
+
+    # Create line items.
+    # if line item prefix is not passed, set unique id as lineitem prefix
+    if lineitem_prefix is None:
+        lineitem_prefix = unique_id
+
+    if setup_type == 'ADPOD':
+        logger.info('\nCreating line_itmes for slot {}...'.format(slot))
+    else:
+        logger.info("\ncreating line_items...")
+
+    if setup_type == constant.ADPOD and deal_lineitem_enabled == True:
+        line_items_config = create_deal_line_item_configs(deal_config, order_id,
+                                                          placement_ids, bidder_code, sizes, OpenWrapTargetingKeyGen(),
+                                                          lineitem_type, lineitem_prefix,
+                                                          currency_code, custom_targeting, setup_type, deal_config_type,
+                                                          ad_unit_ids=ad_unit_ids,
+                                                          same_adv_exception=same_adv_exception,
+                                                          device_category_ids=None, device_capability_ids=None,
+                                                          roadblock_type=roadblock_type,
+                                                          durations=adpod_creative_durations, slot=slot,
+                                                          video_position_type=video_position_type)
+
+    else:
+        line_items_config = create_line_item_configs(prices, order_id,
+                                                     placement_ids, bidder_code, sizes, OpenWrapTargetingKeyGen(),
+                                                     lineitem_type, lineitem_prefix,
+                                                     currency_code, custom_targeting, setup_type, creative_template_ids,
+                                                     same_adv_exception=same_adv_exception, ad_unit_ids=ad_unit_ids,
+                                                     device_category_ids=device_category_ids,
+                                                     device_capability_ids=device_capability_ids,
+                                                     roadblock_type=roadblock_type, durations=adpod_creative_durations,
+                                                     slot=slot, video_position_type=video_position_type)
+
+    logger.info("\nCreating {} line items... This may take several minutes for large batches...".format(len(line_items_config)))
+    logger.info("Please wait while line items are being created in DFP...")
+    line_item_ids = dfp.create_line_items.create_line_items(line_items_config)
+    logger.info("Successfully created {} line items.".format(len(line_item_ids)))
+
+    # Associate creatives with line items.
+    size_overrides = []
+    if use_1x1 and setup_type is not (constant.NATIVE or constant.IN_APP_NATIVE):
+        size_overrides = sizes
+
+    if setup_type == 'ADPOD':
+        logger.info("\nCreating lineitem creative associations for slot {}...".format(slot))
+    else:
+        logger.info("\nCreating lineitem creative associations...")
+
+    dfp.associate_line_items_and_creatives.make_licas(line_item_ids,
+                                                      creative_ids, size_overrides=size_overrides,
+                                                      setup_type=setup_type, slot=slot,
+                                                      durations=adpod_creative_durations)
 
 
-  #get device capabilty ids for in-APP platform
-  device_capability_ids = None
-  if device_capabilities != None and setup_type in (constant.IN_APP, constant.IN_APP_VIDEO, constant.IN_APP_NATIVE):
-    device_capability_ids = []
-    if isinstance(device_capabilities, str):
-        device_capabilities = (device_capabilities)
-
-    dc_map = dfp.get_device_capabilities.get_device_capabilities()
-
-    for dc in device_capabilities:
-        if dc in dc_map:
-            device_capability_ids.append(dc_map[dc])
-        else:
-            raise BadSettingException("Invalid Device Capability: {} ".format(dc))
-
-
-  # Get (or potentially create) the advertiser.
-  advertiser_id = dfp.get_advertisers.get_advertiser_id_by_name(
-    advertiser_name, advertiser_type)
- 
-  if setup_type  == constant.ADPOD and deal_lineitem_enabled == False:
-    order = get_existing_order_details(slot, order_name)
-    order_id = order['id']
-    total_lineitem_count  = order['lic'] 
-    order_count = order['order_count'] 
-    
-    if order_id != 0 and total_lineitem_count > 0:
-        logger.info(
-        'Using existing order with name "{name}".'.format(name=order['name']))
-        order_list.append(order['name'])
-    
-    for p in prices:
-        if total_lineitem_count % constant.LINE_ITEMS_LIMIT == 0:
-            slot_order_name  = str(slot) + "_" + str(order_count) + "_" + order_name  
-            order_count = order_count + 1
-            order_id = dfp.create_orders.create_order(slot_order_name, advertiser_id, user_id)
-            order_list.append(slot_order_name)
-        p['order_id'] = order_id
-        total_lineitem_count = total_lineitem_count + 1 
-  else:
-    order_id = dfp.create_orders.create_order(order_name, advertiser_id, user_id)
-
-  # Create creatives.
-  #Get creative template for native platform
-  creative_template_ids = None
-  if setup_type == constant.NATIVE or setup_type == constant.IN_APP_NATIVE:
-      creative_template_ids = dfp.get_creative_template.get_creative_template_ids_by_name(creative_template)
-
-  #if bidder is None, then bidder will be 'All'
-  bidder_str = bidder_code
-  if bidder_str == None:
-      bidder_str = "All"
-  elif isinstance(bidder_str, (list, tuple)):
-      bidder_str = "_".join(bidder_str)
-
-  #generate unique id that will be used for creative and line item naming
-  unique_id = get_unique_id(setup_type)
-
-  #create creatives
-  if setup_type == 'ADPOD':
-      logger.info('\nCreating creatives for slot {}...'.format(slot)) 
-  else:
-      logger.info("\ncreating creatives...")
-
-  size_arg = sizes
-  if use_1x1:
-      size_arg = None
-
-  creative_configs = get_creative_config(setup_type, bidder_str, order_name, advertiser_id, size_arg, num_creatives, creative_template_ids,  prefix=unique_id, adpod_creative_durations=adpod_creative_durations, slot=slot, creative_user_def_var=creative_user_def_var)
-  creative_ids = dfp.create_creatives.create_creatives(creative_configs)
-  
-  # if platform is video, create creative sets
-  if setup_type in (constant.VIDEO, constant.IN_APP_VIDEO, constant.JW_PLAYER):
-      creative_set_configs = dfp.create_creative_sets.create_creative_set_config(creative_ids, sizes, unique_id)
-      creative_ids = dfp.create_creative_sets.create_creative_sets(creative_set_configs)
-  if setup_type == constant.ADPOD:
-      creative_set_configs = dfp.create_creative_sets.create_creative_set_config_adpod(creative_ids, sizes, unique_id, adpod_creative_durations, slot)
-      creative_ids = dfp.create_creative_sets.create_creative_sets(creative_set_configs)
-
-  # Create line items.
-  # if line item prefix is not passed, set unique id as lineitem prefix
-  if lineitem_prefix is None:
-      lineitem_prefix = unique_id
-
-  if setup_type == 'ADPOD':
-      logger.info('\nCreating line_itmes for slot {}...'.format(slot))
-  else:
-      logger.info("\ncreating line_items...")
-
-  if setup_type == constant.ADPOD and deal_lineitem_enabled == True:
-      line_items_config = create_deal_line_item_configs(deal_config, order_id,
-      placement_ids, bidder_code, sizes, OpenWrapTargetingKeyGen(), lineitem_type, lineitem_prefix,
-      currency_code, custom_targeting, setup_type, deal_config_type, ad_unit_ids=ad_unit_ids, same_adv_exception=same_adv_exception,
-      device_category_ids=None, device_capability_ids=None, roadblock_type=roadblock_type,durations=adpod_creative_durations,slot=slot, video_position_type=video_position_type)
-       
-  else:    
-      line_items_config = create_line_item_configs(prices, order_id,
-      placement_ids, bidder_code, sizes, OpenWrapTargetingKeyGen(), lineitem_type, lineitem_prefix,
-      currency_code, custom_targeting, setup_type, creative_template_ids, same_adv_exception=same_adv_exception,ad_unit_ids=ad_unit_ids,
-      device_category_ids=device_category_ids, device_capability_ids=device_capability_ids, roadblock_type=roadblock_type,durations=adpod_creative_durations,slot=slot, video_position_type = video_position_type)
-  
-  line_item_ids = dfp.create_line_items.create_line_items(line_items_config)
-
-  # Associate creatives with line items.
-  size_overrides = []
-  if use_1x1 and setup_type is not (constant.NATIVE or constant.IN_APP_NATIVE):
-      size_overrides = sizes
-
-  if setup_type == 'ADPOD':
-      logger.info("\nCreating lineitem creative associations for slot {}...".format(slot))
-  else:
-      logger.info("\nCreating lineitem creative associations...")
-
-  dfp.associate_line_items_and_creatives.make_licas(line_item_ids,
-      creative_ids, size_overrides=size_overrides, setup_type=setup_type,slot=slot,durations=adpod_creative_durations)
-    
-
-def print_summary(order_name,advertiser_name,advertiser_type,adpod_size, adpod_creative_durations, deal_config, adpod_slots, lineitem_type,  lineitem_prefix,
-        setup_type, user_email, placements_print, sizes, custom_targeting, same_adv_exception, bidder_code, roadblock_type, deal_config_type, video_position_type):
-    
-    targeting=[] 
-    li_count = 0  
+def print_summary(order_name, advertiser_name, advertiser_type, adpod_size, adpod_creative_durations, deal_config,
+                  adpod_slots, lineitem_type, lineitem_prefix,
+                  setup_type, user_email, placements_print, sizes, custom_targeting, same_adv_exception, bidder_code,
+                  roadblock_type, deal_config_type, video_position_type):
+    targeting = []
+    li_count = 0
     if deal_config_type == constant.DEALTIER:
         for bidder, cfg in deal_config.items():
-          li_count = li_count + len(cfg[constant.PREFIX]) * len(cfg[constant.DEALPRIORITY])
-          for prefix in cfg[constant.PREFIX]:
-            for mdt in cfg[constant.DEALPRIORITY]:
-                targeting.append(prefix + str(mdt))  
+            li_count = li_count + len(cfg[constant.PREFIX]) * len(cfg[constant.DEALPRIORITY])
+            for prefix in cfg[constant.PREFIX]:
+                for mdt in cfg[constant.DEALPRIORITY]:
+                    targeting.append(prefix + str(mdt))
 
-    if deal_config_type == constant.DEALID: 
+    if deal_config_type == constant.DEALID:
         for bidder, cfg in deal_config.items():
-          li_count = li_count + len(cfg[constant.DEALIDS])
-          for dealid in cfg[constant.DEALIDS]:
-                targeting.append(dealid)  
+            li_count = li_count + len(cfg[constant.DEALIDS])
+            for dealid in cfg[constant.DEALIDS]:
+                targeting.append(dealid)
     logger.info(
-      u"""
-      ADPOD Details :
-      
-      {name_start_format}Order{format_end}: {value_start_format}{order_name}{format_end}
-      {name_start_format}Advertiser{format_end}: {value_start_format}{advertiser}{format_end}
-      {name_start_format}Advertiser Type{format_end}: {value_start_format}{advertiser_type}{format_end}
-      {name_start_format}LineItem Type{format_end}: {value_start_format}{lineitem_type}{format_end}
-      {name_start_format}LineItem Prefix{format_end}: {value_start_format}{lineitem_prefix}{format_end}
-      {name_start_format}Setup Type{format_end} = {value_start_format}{setup_type}{format_end}
-      {name_start_format}Adpod Size{format_end}: {value_start_format}{adpod_size}{format_end}
-      {name_start_format}Adpod slot positions{format_end}: {value_start_format}{adpod_slot}{format_end}
-      {name_start_format}Adpod creative Durations{format_end}: {adpod_creative_durations}{format_end}
-      {name_start_format}Line Item per each slot{format_end}: {value_start_format}{lineitem_per_slot}{format_end}
-      {name_start_format}Creatives per each slot{format_end}: {value_start_format}{creatives_per_slot}{format_end}
-      {name_start_format}Total number of Line Items{format_end}: {value_start_format}{lineitem_total}{format_end}
-      {name_start_format}Total number of Creatives{format_end}: {value_start_format}{creatives_total}{format_end}      
-      {name_start_format}LineItem Type{format_end}: {value_start_format}{lineitem_type}{format_end}      
-      {name_start_format}Deal Config Type{format_end}: {value_start_format}{deal_config_type}{format_end}            
-      {name_start_format}Deal Config{format_end}: {value_start_format}{deal_config}{format_end}            
-      
-      Line items will have targeting:
-      {name_start_format}Video Position Type{format_end} = {value_start_format}{video_position_type}{format_end}
-      {name_start_format}Targeting{format_end} = {value_start_format}{targeting}{format_end}
-      {name_start_format}Bidders{format_end} = {value_start_format}{bidder_code}{format_end}
-      {name_start_format}Placements{format_end} = {value_start_format}{placements}{format_end}
-      {name_start_format}Custom targeting{format_end} = {value_start_format}{custom_targeting}{format_end}
-      {name_start_format}Same advertiser exception{format_end} = {value_start_format}{same_adv_exception}{format_end}
-      {name_start_format}Roadblock type{format_end} = {value_start_format}{roadblock_type}{format_end}
+        u"""
+        ADPOD Details :
   
-      """.format(
-        order_name=order_name,
-        advertiser=advertiser_name,
-        advertiser_type=advertiser_type,
-        lineitem_type=lineitem_type,
-        lineitem_prefix=lineitem_prefix,
-        setup_type=setup_type,
-        user_email=user_email,
-        adpod_size = adpod_size,
-        adpod_slot = adpod_slots,
-        lineitem_per_slot = li_count,
-        lineitem_total = li_count*adpod_size,
-        adpod_creative_durations = adpod_creative_durations,
-        creatives_per_slot= len(adpod_creative_durations),
-        creatives_total= adpod_size * len(adpod_creative_durations),
-        deal_config = deal_config,
-        deal_config_type = deal_config_type,
-        video_position_type = video_position_type,
-        targeting = targeting,
-        bidder_code = bidder_code,
-        placements=placements_print,
-        sizes=sizes,
-        custom_targeting=custom_targeting,
-        same_adv_exception=same_adv_exception,
-        roadblock_type=roadblock_type,
-        name_start_format=color.BOLD,
-        format_end=color.END,
-        value_start_format=color.BLUE,
-    ))  
+        {name_start_format}Order{format_end}: {value_start_format}{order_name}{format_end}
+        {name_start_format}Advertiser{format_end}: {value_start_format}{advertiser}{format_end}
+        {name_start_format}Advertiser Type{format_end}: {value_start_format}{advertiser_type}{format_end}
+        {name_start_format}LineItem Type{format_end}: {value_start_format}{lineitem_type}{format_end}
+        {name_start_format}LineItem Prefix{format_end}: {value_start_format}{lineitem_prefix}{format_end}
+        {name_start_format}Setup Type{format_end} = {value_start_format}{setup_type}{format_end}
+        {name_start_format}Adpod Size{format_end}: {value_start_format}{adpod_size}{format_end}
+        {name_start_format}Adpod slot positions{format_end}: {value_start_format}{adpod_slot}{format_end}
+        {name_start_format}Adpod creative Durations{format_end}: {adpod_creative_durations}{format_end}
+        {name_start_format}Line Item per each slot{format_end}: {value_start_format}{lineitem_per_slot}{format_end}
+        {name_start_format}Creatives per each slot{format_end}: {value_start_format}{creatives_per_slot}{format_end}
+        {name_start_format}Total number of Line Items{format_end}: {value_start_format}{lineitem_total}{format_end}
+        {name_start_format}Total number of Creatives{format_end}: {value_start_format}{creatives_total}{format_end}      
+        {name_start_format}LineItem Type{format_end}: {value_start_format}{lineitem_type}{format_end}      
+        {name_start_format}Deal Config Type{format_end}: {value_start_format}{deal_config_type}{format_end}            
+        {name_start_format}Deal Config{format_end}: {value_start_format}{deal_config}{format_end}            
+  
+        Line items will have targeting:
+        {name_start_format}Video Position Type{format_end} = {value_start_format}{video_position_type}{format_end}
+        {name_start_format}Targeting{format_end} = {value_start_format}{targeting}{format_end}
+        {name_start_format}Bidders{format_end} = {value_start_format}{bidder_code}{format_end}
+        {name_start_format}Placements{format_end} = {value_start_format}{placements}{format_end}
+        {name_start_format}Custom targeting{format_end} = {value_start_format}{custom_targeting}{format_end}
+        {name_start_format}Same advertiser exception{format_end} = {value_start_format}{same_adv_exception}{format_end}
+        {name_start_format}Roadblock type{format_end} = {value_start_format}{roadblock_type}{format_end}
+  
+        """.format(
+            order_name=order_name,
+            advertiser=advertiser_name,
+            advertiser_type=advertiser_type,
+            lineitem_type=lineitem_type,
+            lineitem_prefix=lineitem_prefix,
+            setup_type=setup_type,
+            user_email=user_email,
+            adpod_size=adpod_size,
+            adpod_slot=adpod_slots,
+            lineitem_per_slot=li_count,
+            lineitem_total=li_count * adpod_size,
+            adpod_creative_durations=adpod_creative_durations,
+            creatives_per_slot=len(adpod_creative_durations),
+            creatives_total=adpod_size * len(adpod_creative_durations),
+            deal_config=deal_config,
+            deal_config_type=deal_config_type,
+            video_position_type=video_position_type,
+            targeting=targeting,
+            bidder_code=bidder_code,
+            placements=placements_print,
+            sizes=sizes,
+            custom_targeting=custom_targeting,
+            same_adv_exception=same_adv_exception,
+            roadblock_type=roadblock_type,
+            name_start_format=color.BOLD,
+            format_end=color.END,
+            value_start_format=color.BLUE,
+        ))
 
 
 def get_creative_file(setup_type):
@@ -749,6 +796,8 @@ def get_creative_file(setup_type):
         creative_file = "creative_snippet_openwrap.html"
     elif setup_type == constant.WEB_SAFEFRAME:
         creative_file = "creative_snippet_openwrap_sf.html"
+    elif setup_type == constant.WEBINTERSTITIAL:
+        creative_file = "creative_snippet_openwrap_webinterstitial.html"
     elif setup_type == constant.AMP:
         creative_file = "creative_snippet_openwrap_amp.html"
     elif setup_type == constant.IN_APP:
@@ -756,283 +805,304 @@ def get_creative_file(setup_type):
 
     return creative_file
 
+
 def create_deal_line_item_configs(deal_config, order_id, placement_ids, bidder_code, sizes, key_gen_obj,
-  lineitem_type, lineitem_prefix, currency_code, custom_targeting, setup_type, deal_config_type, ad_unit_ids=None, same_adv_exception=False, 
-  device_category_ids=None,device_capability_ids=None, roadblock_type='ONE_OR_MORE', durations = None, slot = None,  video_position_type = None):
-  """
-  Create a line item config for each dealtier.
+                                  lineitem_type, lineitem_prefix, currency_code, custom_targeting, setup_type,
+                                  deal_config_type, ad_unit_ids=None, same_adv_exception=False,
+                                  device_category_ids=None, device_capability_ids=None, roadblock_type='ONE_OR_MORE',
+                                  durations=None, slot=None, video_position_type=None):
+    """
+    Create a line item config for each dealtier.
 
-  Args:
-    prices (array)
-    order_id (int)
-    placement_ids (arr)
-    bidder_code (str or arr)
-    sizes (arr)
-    key_gen_obj (obj)
-    lineitem_type (str)
-    lineitem_prefix (str)
-    currency_code (str)
-    custom_targeting (arr)
-    setup_type (str)
-    creative_template_ids (arr)
-    ad_unit_ids (arr)
-    same_adv_exception(bool)
-    device_category_ids (int)
-    device_capability_ids (int)
-    roadblock_type (str)
-    durations(array)
-    slot(string) 
-  Returns:
-    an array of objects: the array of DFP line item configurations
-  """
+    Args:
+      prices (array)
+      order_id (int)
+      placement_ids (arr)
+      bidder_code (str or arr)
+      sizes (arr)
+      key_gen_obj (obj)
+      lineitem_type (str)
+      lineitem_prefix (str)
+      currency_code (str)
+      custom_targeting (arr)
+      setup_type (str)
+      creative_template_ids (arr)
+      ad_unit_ids (arr)
+      same_adv_exception(bool)
+      device_category_ids (int)
+      device_capability_ids (int)
+      roadblock_type (str)
+      durations(array)
+      slot(string)
+    Returns:
+      an array of objects: the array of DFP line item configurations
+    """
 
- 
-  key_gen_obj.set_setup_type(setup_type)
+    key_gen_obj.set_setup_type(setup_type)
 
-  # Set DFP targeting for custom targetting passed in settings.py
-  key_gen_obj.set_custom_targeting(custom_targeting)
-  key_gen_obj.set_creative_targeting(durations,slot)  
+    # Set DFP targeting for custom targetting passed in settings.py
+    key_gen_obj.set_custom_targeting(custom_targeting)
+    key_gen_obj.set_creative_targeting(durations, slot)
 
-  line_items_config = []
-     
-  #create line item config for each price
-  for bidder, cfg in deal_config.items():
-    if bidder_code is not None:
-        found = False
-        for bc in bidder_code:
-            if bidder == bc:
-                found = True
-                break
-        if found == True:
-            key_gen_obj.set_bidder_value(bidder_code, slot)
-        else:
-            key_gen_obj.set_bidder_value(None, slot)
+    line_items_config = []
 
-    if deal_config_type == constant.DEALID:
-        for dealid in cfg[constant.DEALIDS]:
-            key_gen_obj.set_dealids(slot, dealid)
-            line_item_name = '{}_{}_{}_{}'.format(slot, lineitem_prefix, bidder, dealid)
-            config = dfp.create_line_items.create_line_item_config(
-              name=line_item_name,
-              order_id=order_id,
-              placement_ids=placement_ids,
-              cpm_micro_amount=num_to_micro_amount(round(cfg['price'],2)),
-              sizes=sizes,
-              key_gen_obj=key_gen_obj,
-              lineitem_type=lineitem_type,
-              currency_code=currency_code,
-              setup_type=setup_type,
-              creative_template_ids=None,
-              ad_unit_ids=ad_unit_ids,
-              same_adv_exception=same_adv_exception,
-              device_categories=device_category_ids,
-              device_capabilities=device_capability_ids,
-              roadblock_type=roadblock_type,
-              durations=durations,
-              slot=slot,
-              video_position_type=video_position_type   
-            )
-            line_items_config.append(config)
+    # Suffix per run to keep line item names unique when reusing existing orders
+    lineitem_suffix = f"_{uuid.uuid4().hex[:6]}"
 
+    # create line item config for each price
+    for bidder, cfg in deal_config.items():
+        if bidder_code is not None:
+            found = False
+            for bc in bidder_code:
+                if bidder == bc:
+                    found = True
+                    break
+            if found == True:
+                key_gen_obj.set_bidder_value(bidder_code, slot)
+            else:
+                key_gen_obj.set_bidder_value(None, slot)
 
-    if deal_config_type == constant.DEALTIER: 
-        for prefix in cfg[constant.PREFIX]:
-            for dp in cfg[constant.DEALPRIORITY]:
-                dealtier = prefix + str(dp)
-                key_gen_obj.set_deal_tier(slot, dealtier)
-                line_item_name = '{}_{}_{}_{}'.format(slot, lineitem_prefix, bidder, dealtier)
-
+        if deal_config_type == constant.DEALID:
+            for dealid in cfg[constant.DEALIDS]:
+                key_gen_obj.set_dealids(slot, dealid)
+                line_item_name = '{}_{}_{}_{}'.format(slot, lineitem_prefix, bidder, dealid)
                 config = dfp.create_line_items.create_line_item_config(
-                  name=line_item_name,
-                  order_id=order_id,
-                  placement_ids=placement_ids,
-                  cpm_micro_amount=num_to_micro_amount(round(cfg['price'],2)),
-                  sizes=sizes,
-                  key_gen_obj=key_gen_obj,
-                  lineitem_type=lineitem_type,
-                  currency_code=currency_code,
-                  setup_type=setup_type,
-                  creative_template_ids=None,
-                  ad_unit_ids=ad_unit_ids,
-                  same_adv_exception=same_adv_exception,
-                  device_categories=device_category_ids,
-                  device_capabilities=device_capability_ids,
-                  roadblock_type=roadblock_type,
-                  durations=durations,
-                  slot=slot,
-                  video_position_type=video_position_type
+                    name=line_item_name,
+                    order_id=order_id,
+                    placement_ids=placement_ids,
+                    cpm_micro_amount=num_to_micro_amount(round(cfg['price'], 2)),
+                    sizes=sizes,
+                    key_gen_obj=key_gen_obj,
+                    lineitem_type=lineitem_type,
+                    currency_code=currency_code,
+                    setup_type=setup_type,
+                    creative_template_ids=None,
+                    ad_unit_ids=ad_unit_ids,
+                    same_adv_exception=same_adv_exception,
+                    device_categories=device_category_ids,
+                    device_capabilities=device_capability_ids,
+                    roadblock_type=roadblock_type,
+                    durations=durations,
+                    slot=slot,
+                    video_position_type=video_position_type
                 )
-
                 line_items_config.append(config)
 
-  return line_items_config
+        if deal_config_type == constant.DEALTIER:
+            for prefix in cfg[constant.PREFIX]:
+                for dp in cfg[constant.DEALPRIORITY]:
+                    dealtier = prefix + str(dp)
+                    key_gen_obj.set_deal_tier(slot, dealtier)
+                    line_item_name = '{}_{}_{}_{}'.format(slot, lineitem_prefix, bidder, dealtier)
+
+                    config = dfp.create_line_items.create_line_item_config(
+                        name=line_item_name,
+                        order_id=order_id,
+                        placement_ids=placement_ids,
+                        cpm_micro_amount=num_to_micro_amount(round(cfg['price'], 2)),
+                        sizes=sizes,
+                        key_gen_obj=key_gen_obj,
+                        lineitem_type=lineitem_type,
+                        currency_code=currency_code,
+                        setup_type=setup_type,
+                        creative_template_ids=None,
+                        ad_unit_ids=ad_unit_ids,
+                        same_adv_exception=same_adv_exception,
+                        device_categories=device_category_ids,
+                        device_capabilities=device_capability_ids,
+                        roadblock_type=roadblock_type,
+                        durations=durations,
+                        slot=slot,
+                        video_position_type=video_position_type
+                    )
+
+                    line_items_config.append(config)
+
+    return line_items_config
 
 
 def create_line_item_configs(prices, order_id, placement_ids, bidder_code, sizes, key_gen_obj,
-  lineitem_type, lineitem_prefix, currency_code, custom_targeting, setup_type, creative_template_ids,
-  ad_unit_ids=None, same_adv_exception=False, device_category_ids=None,device_capability_ids=None,
-  roadblock_type='ONE_OR_MORE', durations = None, slot = None, video_position_type = None):
-  """
-  Create a line item config for each price bucket.
+                             lineitem_type, lineitem_prefix, currency_code, custom_targeting, setup_type,
+                             creative_template_ids,
+                             ad_unit_ids=None, same_adv_exception=False, device_category_ids=None,
+                             device_capability_ids=None,
+                             roadblock_type='ONE_OR_MORE', durations=None, slot=None, video_position_type=None):
+    """
+    Create a line item config for each price bucket.
 
-  Args:
-    prices (array)
-    order_id (int)
-    placement_ids (arr)
-    bidder_code (str or arr)
-    sizes (arr)
-    key_gen_obj (obj)
-    lineitem_type (str)
-    lineitem_prefix (str)
-    currency_code (str)
-    custom_targeting (arr)
-    setup_type (str)
-    creative_template_ids (arr)
-    ad_unit_ids (arr)
-    same_adv_exception(bool)
-    device_category_ids (int)
-    device_capability_ids (int)
-    roadblock_type (str)
-    durations(array)
-    slot(string) 
-  Returns:
-    an array of objects: the array of DFP line item configurations
-  """
+    Args:
+      prices (array)
+      order_id (int)
+      placement_ids (arr)
+      bidder_code (str or arr)
+      sizes (arr)
+      key_gen_obj (obj)
+      lineitem_type (str)
+      lineitem_prefix (str)
+      currency_code (str)
+      custom_targeting (arr)
+      setup_type (str)
+      creative_template_ids (arr)
+      ad_unit_ids (arr)
+      same_adv_exception(bool)
+      device_category_ids (int)
+      device_capability_ids (int)
+      roadblock_type (str)
+      durations(array)
+      slot(string)
+    Returns:
+      an array of objects: the array of DFP line item configurations
+    """
 
-  if setup_type is not constant.ADPOD:
-      key_gen_obj.init_keys()
-
-  key_gen_obj.set_setup_type(setup_type)
-
-  # Set DFP custom targeting for key `pwtpid` based on bidder code
-  key_gen_obj.set_bidder_value(bidder_code, slot)
-
-  # Set DFP targeting for custom targetting passed in settings.py
-  key_gen_obj.set_custom_targeting(custom_targeting)
-
-  #do not set platform targeting for jwplayer, adpod
-  if setup_type not in (constant.JW_PLAYER, constant.ADPOD):
-      key_gen_obj.set_platform_targetting()
-
-  if setup_type is constant.JW_PLAYER:
-      key_gen_obj.set_jwplayer_key()
-
-  if setup_type is constant.ADPOD:  
-     key_gen_obj.set_creative_targeting(durations,slot)  
-
-  line_items_config = []
-
-  #create line item config for each price
-  for price in prices:
-    if setup_type ==constant.ADPOD:
-        price_str = num_to_str(price['rate'], precision=2)
-        order_id = price['order_id']
-    else:    
-        price_str = num_to_str(price['rate'], precision=3)
-
-    # Remove trailing zero if exists
-    if re.match("\d+\.\d{2}0",price_str):
-        price_str = price_str[0:-1]
-
-    bidder_str = bidder_code
-    if bidder_str == None:
-        bidder_str = "All"
-    elif isinstance(bidder_str, (list, tuple)):
-        bidder_str = "_".join(bidder_str)
-
-    # Autogenerate the line item name. (prefix_rate)
-    if setup_type == 'ADPOD':
-        line_item_name = '{}_{}_{}'.format(slot, lineitem_prefix, price_str)
-    else:
-        line_item_name = '{}_{}'.format(lineitem_prefix, price_str)
-    
-    # Set DFP custom targeting for key `pwtecp`
     if setup_type is not constant.ADPOD:
-        key_gen_obj.set_price_value(price)
+        key_gen_obj.init_keys()
 
-     # Set DFP custom targeting for key `pwtpb`
-    if setup_type  == constant.ADPOD:
-        key_gen_obj.set_bid_price(slot, num_to_str(price['start'], precision=2))
-  
-    config = dfp.create_line_items.create_line_item_config(
-      name=line_item_name,
-      order_id=order_id,
-      placement_ids=placement_ids,
-      cpm_micro_amount=num_to_micro_amount(round(price['rate'],2)),
-      sizes=sizes,
-      key_gen_obj=key_gen_obj,
-      lineitem_type=lineitem_type,
-      currency_code=currency_code,
-      setup_type=setup_type,
-      creative_template_ids=creative_template_ids,
-      ad_unit_ids=ad_unit_ids,
-      same_adv_exception=same_adv_exception,
-      device_categories=device_category_ids,
-      device_capabilities=device_capability_ids,
-      roadblock_type=roadblock_type,
-      durations=durations,
-      slot=slot,
-      video_position_type=video_position_type
-    )
+    key_gen_obj.set_setup_type(setup_type)
 
-    line_items_config.append(config)
+    # Set DFP custom targeting for key `pwtpid` based on bidder code
+    key_gen_obj.set_bidder_value(bidder_code, slot)
 
-  return line_items_config
+    # Set DFP targeting for custom targetting passed in settings.py
+    key_gen_obj.set_custom_targeting(custom_targeting)
 
-#This method returns creative config based on the creative type
+    # do not set platform targeting for jwplayer, adpod
+    if setup_type not in (constant.JW_PLAYER, constant.ADPOD):
+        key_gen_obj.set_platform_targetting()
+
+    if setup_type is constant.JW_PLAYER:
+        key_gen_obj.set_jwplayer_key()
+
+    if setup_type is constant.ADPOD:
+        key_gen_obj.set_creative_targeting(durations, slot)
+
+    line_items_config = []
+
+    # Suffix per run to keep line item names unique when reusing existing orders
+    lineitem_suffix = f"_{uuid.uuid4().hex[:6]}"
+
+    # create line item config for each price
+    for price in prices:
+        if setup_type == constant.ADPOD:
+            price_str = num_to_str(price['rate'], precision=2)
+            order_id = price['order_id']
+        else:
+            price_str = num_to_str(price['rate'], precision=3)
+
+        # Remove trailing zero if exists
+        if re.match("\d+\.\d{2}0", price_str):
+            price_str = price_str[0:-1]
+
+        bidder_str = bidder_code
+        if bidder_str == None:
+            bidder_str = "All"
+        elif isinstance(bidder_str, (list, tuple)):
+            bidder_str = "_".join(bidder_str)
+
+        # Autogenerate the line item name. (prefix_rate)
+        if setup_type == 'ADPOD':
+            line_item_name = '{}_{}_{}{}'.format(slot, lineitem_prefix, price_str, lineitem_suffix)
+        else:
+            line_item_name = '{}_{}{}'.format(lineitem_prefix, price_str, lineitem_suffix)
+
+        # Set DFP custom targeting for key `pwtecp`
+        if setup_type is not constant.ADPOD:
+            key_gen_obj.set_price_value(price)
+
+        # Set DFP custom targeting for key `pwtpb`
+        if setup_type == constant.ADPOD:
+            key_gen_obj.set_bid_price(slot, num_to_str(price['start'], precision=2))
+
+        config = dfp.create_line_items.create_line_item_config(
+            name=line_item_name,
+            order_id=order_id,
+            placement_ids=placement_ids,
+            cpm_micro_amount=num_to_micro_amount(round(price['rate'], 2)),
+            sizes=sizes,
+            key_gen_obj=key_gen_obj,
+            lineitem_type=lineitem_type,
+            currency_code=currency_code,
+            setup_type=setup_type,
+            creative_template_ids=creative_template_ids,
+            ad_unit_ids=ad_unit_ids,
+            same_adv_exception=same_adv_exception,
+            device_categories=device_category_ids,
+            device_capabilities=device_capability_ids,
+            roadblock_type=roadblock_type,
+            durations=durations,
+            slot=slot,
+            video_position_type=video_position_type
+        )
+
+        line_items_config.append(config)
+
+    return line_items_config
+
+
+# This method returns creative config based on the creative type
 def get_creative_config(setup_type, bidder_str, order_name, advertiser_id, sizes, num_creatives,
-    creative_template_ids, prefix, adpod_creative_durations=None, slot= None, creative_user_def_var=None):
-
-    creative_configs= []
+                        creative_template_ids, prefix, adpod_creative_durations=None, slot=None,
+                        creative_user_def_var=None):
+    creative_configs = []
     if setup_type == constant.NATIVE or setup_type == constant.IN_APP_NATIVE:
-        creative_configs = dfp.create_creatives.create_creative_configs_for_native(advertiser_id, creative_template_ids, num_creatives, prefix, creative_user_def_var)
+        creative_configs = dfp.create_creatives.create_creative_configs_for_native(advertiser_id, creative_template_ids,
+                                                                                   num_creatives, prefix,
+                                                                                   creative_user_def_var)
     elif setup_type == constant.VIDEO:
-        creative_configs = dfp.create_creatives.create_creative_configs_for_video(advertiser_id, sizes, prefix, constant.VIDEO_VAST_URL, constant.VIDEO_DURATION)
+        creative_configs = dfp.create_creatives.create_creative_configs_for_video(advertiser_id, sizes, prefix,
+                                                                                  constant.VIDEO_VAST_URL,
+                                                                                  constant.VIDEO_DURATION)
     elif setup_type == constant.IN_APP_VIDEO:
-        creative_configs = dfp.create_creatives.create_creative_configs_for_video(advertiser_id, sizes, prefix, constant.SDK_VIDEO_VAST_URL, constant.SDK_VIDEO_DURATION)
+        creative_configs = dfp.create_creatives.create_creative_configs_for_video(advertiser_id, sizes, prefix,
+                                                                                  constant.SDK_VIDEO_VAST_URL,
+                                                                                  constant.SDK_VIDEO_DURATION)
     elif setup_type == constant.JW_PLAYER:
-        creative_configs = dfp.create_creatives.create_creative_configs_for_video(advertiser_id, sizes, prefix, constant.JWP_VAST_URL, constant.JWP_DURATION)
+        creative_configs = dfp.create_creatives.create_creative_configs_for_video(advertiser_id, sizes, prefix,
+                                                                                  constant.JWP_VAST_URL,
+                                                                                  constant.JWP_DURATION)
     elif setup_type == constant.ADPOD:
-        creative_configs = dfp.create_creatives.create_creative_configs_for_adpod(advertiser_id, sizes, prefix,constant.ADPOD_VIDEO_VAST_URL, adpod_creative_durations, slot)
+        creative_configs = dfp.create_creatives.create_creative_configs_for_adpod(advertiser_id, sizes, prefix,
+                                                                                  constant.ADPOD_VIDEO_VAST_URL,
+                                                                                  adpod_creative_durations, slot)
     else:
         use_safe_frame = False
         if setup_type in (constant.WEB_SAFEFRAME, constant.AMP):
-          use_safe_frame = True
+            use_safe_frame = True
         creative_file = get_creative_file(setup_type)
         creative_configs = dfp.create_creatives.create_duplicate_creative_configs(
-          bidder_str, order_name, advertiser_id, sizes, num_creatives, creative_file=creative_file, safe_frame=use_safe_frame, prefix=prefix)
+            bidder_str, order_name, advertiser_id, sizes, num_creatives, creative_file=creative_file,
+            safe_frame=use_safe_frame, prefix=prefix)
 
     return creative_configs
 
-def get_existing_order_details(slot, order_name):
 
+def get_existing_order_details(slot, order_name):
     count = 1
     while True:
-        orderName =  str(slot) + "_" + str(count) + "_" + order_name  
+        orderName = str(slot) + "_" + str(count) + "_" + order_name
         order = dfp.get_orders.get_order_by_name(orderName)
         if order is None:
             return {
-                    'id': 0,
-                    'order_count': count,
-                    'lic': 0,
-                    'name': orderName 
-                }  
-        
+                'id': 0,
+                'order_count': count,
+                'lic': 0,
+                'name': orderName
+            }
+
         orderId = order['id']
         lic = dfp.get_line_items.get_line_item_count_by_order(orderId)
         if lic < constant.LINE_ITEMS_LIMIT:
-           return {
-               'id': orderId,
-               'order_count': count,
-               'lic': lic,
-               'name': orderName
-           } 
-        count = count+1
-     
-def get_unique_id(setup_type):
+            return {
+                'id': orderId,
+                'order_count': count,
+                'lic': lic,
+                'name': orderName
+            }
+        count = count + 1
 
+
+def get_unique_id(setup_type):
     uid = shortuuid.uuid()
-    if setup_type in (constant.WEB, constant.WEB_SAFEFRAME):
+    if setup_type in (constant.WEB, constant.WEB_SAFEFRAME, constant.WEBINTERSTITIAL):
         uid = u'DISPLAY_{}'.format(uid)
     if setup_type is constant.AMP:
         uid = u'AMP_{}'.format(uid)
@@ -1052,9 +1122,9 @@ def get_unique_id(setup_type):
         uid = u'VIDEO_{}'.format(uid)
     return uid
 
-def get_calculated_rate(start_rate_range, end_rate_range, rate_id, exchange_rate, precision):
 
-    if(start_rate_range == 0 and rate_id == 2):
+def get_calculated_rate(start_rate_range, end_rate_range, rate_id, exchange_rate, precision):
+    if (start_rate_range == 0 and rate_id == 2):
         rate_id = 1
 
     if rate_id == 2:
@@ -1067,11 +1137,12 @@ def get_dfp_network():
     current_network = dfp.get_network.get_dfp_network()
     return current_network
 
+
 def get_exchange_rate(currency_code):
     if currency_code.upper() == "USD":
         return float(1)
-    #currency_code = 'GBP'
-    url = "http://api.currencylayer.com/live?access_key=55586212cb183ad61a879b07d76e1d47&source=USD&currencies=" + currency_code +"&format=1"
+    # currency_code = 'GBP'
+    url = "http://api.currencylayer.com/live?access_key=55586212cb183ad61a879b07d76e1d47&source=USD&currencies=" + currency_code + "&format=1"
 
     response = urlopen(url)
     string = response.read().decode('utf-8')
@@ -1083,16 +1154,16 @@ def load_price_csv(filename, setup_type):
     buckets = []
     exchange_rate = 1
 
-    #read currency conversion flag
+    # read currency conversion flag
     currency_exchange = True
 
-    precision = 3 
+    precision = 3
     if setup_type == constant.ADPOD:
         currency_exchange = False
         precision = 2
 
     # Currency module/CURRENCY_EXCHANGE is applicable for web and native platform
-    if setup_type in (constant.WEB, constant.WEB_SAFEFRAME, constant.NATIVE, constant.IN_APP, constant.IN_APP_VIDEO):
+    if setup_type in (constant.WEB, constant.WEB_SAFEFRAME, constant.WEBINTERSTITIAL, constant.NATIVE, constant.IN_APP, constant.IN_APP_VIDEO):
         currency_exchange = getattr(settings, 'CURRENCY_EXCHANGE', True)
 
     if currency_exchange:
@@ -1100,50 +1171,51 @@ def load_price_csv(filename, setup_type):
         logger.info("Network currency : %s", network.currencyCode)
         exchange_rate = get_exchange_rate(network.currencyCode)
     logger.info("Currency exchange rate: {}".format(exchange_rate))
-    #currency rate handling till here
+    # currency rate handling till here
     with open(filename, 'r') as csvfile:
         preader = csv.reader(csvfile)
         next(preader)  # skip header row
         pg_ranges = []
         for row in preader:
-                # ignore extra lines or spaces
-                if row == [] or row[0].strip() == "":
-                    continue
-                pg_ranges.append(row)
-                try:
-                    start_range = float(row[0].strip())
-                    end_range = float(row[1].strip())
-                    granularity = float(row[2].strip())
-                    rate_id = int(row[3].strip())
-                    if setup_type == constant.ADPOD:
-                        rate_id = 2
-                except ValueError:
-                    raise BadSettingException('Start range, end range, granularity and rate id should be number. Please correct the csv and try again.')
+            # ignore extra lines or spaces
+            if row == [] or row[0].strip() == "":
+                continue
+            pg_ranges.append(row)
+            try:
+                start_range = float(row[0].strip())
+                end_range = float(row[1].strip())
+                granularity = float(row[2].strip())
+                rate_id = int(row[3].strip())
+                if setup_type == constant.ADPOD:
+                    rate_id = 2
+            except ValueError:
+                raise BadSettingException(
+                    'Start range, end range, granularity and rate id should be number. Please correct the csv and try again.')
 
-                validateCSVValues(start_range, end_range, granularity, rate_id)
+            validateCSVValues(start_range, end_range, granularity, rate_id)
 
-                if granularity != -1:
-                    i = start_range
-                    while i < end_range:
-                        a = round(i + granularity,2)
-                        if a > end_range:
-                            a = end_range
+            if granularity != -1:
+                i = start_range
+                while i < end_range:
+                    a = round(i + granularity, 2)
+                    if a > end_range:
+                        a = end_range
 
-                        if round(i,2) != (a,2):
-                             buckets.append({
-                                'start': i,
-                                'end': a,
-                                'granularity': granularity,
-                                'rate': get_calculated_rate(i, a, rate_id, exchange_rate, precision)
-                             })
-                        i = a
-                else:
-                     buckets.append({
-                        'start': start_range,
-                        'end': end_range,
-                        'granularity': 1.0,
-                        'rate': get_calculated_rate(start_range, end_range, rate_id, exchange_rate, precision)
-                     })
+                    if round(i, 2) != (a, 2):
+                        buckets.append({
+                            'start': i,
+                            'end': a,
+                            'granularity': granularity,
+                            'rate': get_calculated_rate(i, a, rate_id, exchange_rate, precision)
+                        })
+                    i = a
+            else:
+                buckets.append({
+                    'start': start_range,
+                    'end': end_range,
+                    'granularity': 1.0,
+                    'rate': get_calculated_rate(start_range, end_range, rate_id, exchange_rate, precision)
+                })
         logger.info("\nPrice Granularity Ranges:")
         table = PrettyTable()
         table.field_names = [
@@ -1159,21 +1231,24 @@ def load_price_csv(filename, setup_type):
                 f"{color.BLUE}{price_granularity.strip()}{color.END}",
                 f"{color.BLUE}{rateId.strip()}{color.END}",
             ])
-        logger.info(table)    
+        logger.info(table)
     return buckets
 
+
 def validateCSVValues(start_range, end_range, granularity, rate_id):
-    if start_range < 0 or end_range < 0 :
-        raise BadSettingException('Start range and end range can not be negative. Please correct the csv and try again.')
+    if start_range < 0 or end_range < 0:
+        raise BadSettingException(
+            'Start range and end range can not be negative. Please correct the csv and try again.')
 
     if start_range > end_range:
         raise BadSettingException('Start range can not be more than end range. Please correct the csv and try again.')
 
-    if rate_id not in (1,2):
+    if rate_id not in (1, 2):
         raise BadSettingException('Rate id can only be 1 or 2. Please correct the csv and try again')
 
     if start_range < 0.01 and granularity == 0.01:
-        raise BadSettingException('Start range can not be less than 0.01 for granularity 0.01, either increase granularity or start range in csv.')
+        raise BadSettingException(
+            'Start range can not be less than 0.01 for granularity 0.01, either increase granularity or start range in csv.')
 
     if end_range > 999:
         raise BadSettingException('End range can not be more then 999. Please correct the csv and try again.')
@@ -1181,309 +1256,343 @@ def validateCSVValues(start_range, end_range, granularity, rate_id):
     if granularity == 0:
         raise BadSettingException('Zero is not accepted as granularity. Please correct the csv and try again')
 
+
 class color:
-   PURPLE = '\033[95m'
-   CYAN = '\033[96m'
-   DARKCYAN = '\033[36m'
-   BLUE = '\033[94m'
-   GREEN = '\033[92m'
-   YELLOW = '\033[93m'
-   RED = '\033[91m'
-   BOLD = '\033[1m'
-   UNDERLINE = '\033[4m'
-   END = '\033[0m'
+    PURPLE = '\033[95m'
+    CYAN = '\033[96m'
+    DARKCYAN = '\033[36m'
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    END = '\033[0m'
+
 
 def main():
-  """
-  Validate the settings and ask for confirmation from the user. Then,
-  start all necessary DFP tasks.
-  """
+    """
+    Validate the settings and ask for confirmation from the user. Then,
+    start all necessary DFP tasks.
+    """
 
-  user_email = getattr(settings, 'DFP_USER_EMAIL_ADDRESS', None)
-  if user_email is None:
-    raise MissingSettingException('DFP_USER_EMAIL_ADDRESS')
+    user_email = getattr(settings, 'DFP_USER_EMAIL_ADDRESS', None)
+    if user_email is None:
+        raise MissingSettingException('DFP_USER_EMAIL_ADDRESS')
 
-  advertiser_name = getattr(settings, 'DFP_ADVERTISER_NAME', None)
-  if advertiser_name is None:
-    raise MissingSettingException('DFP_ADVERTISER_NAME')
+    advertiser_name = getattr(settings, 'DFP_ADVERTISER_NAME', None)
+    if advertiser_name is None:
+        raise MissingSettingException('DFP_ADVERTISER_NAME')
 
-  advertiser_type = getattr(settings, 'DFP_ADVERTISER_TYPE', "ADVERTISER")
-  if advertiser_type != "ADVERTISER" and advertiser_type != "AD_NETWORK":
-    raise BadSettingException('DFP_ADVERTISER_TYPE')
+    advertiser_type = getattr(settings, 'DFP_ADVERTISER_TYPE', "ADVERTISER")
+    if advertiser_type != "ADVERTISER" and advertiser_type != "AD_NETWORK":
+        raise BadSettingException('DFP_ADVERTISER_TYPE')
 
-  order_name = getattr(settings, 'DFP_ORDER_NAME', None)
-  if order_name is None:
-    raise MissingSettingException('DFP_ORDER_NAME')
+    order_name = getattr(settings, 'DFP_ORDER_NAME', None)
+    if order_name is None:
+        raise MissingSettingException('DFP_ORDER_NAME')
+    # Log the order name being used (for debugging)
+    logger.info('Using order name from settings: "{}"'.format(order_name))
 
-  lineitem_type = getattr(settings, 'DFP_LINEITEM_TYPE', None)
-  if lineitem_type is None:
-    raise MissingSettingException('DFP_LINEITEM_TYPE')
+    lineitem_type = getattr(settings, 'DFP_LINEITEM_TYPE', None)
+    if lineitem_type is None:
+        raise MissingSettingException('DFP_LINEITEM_TYPE')
 
+    num_placements = 0
+    placements = getattr(settings, 'DFP_TARGETED_PLACEMENT_NAMES', None)
+    placements_print = str(placements)
+    if placements is None:
+        placements = []
+        placements_print = "RON"
 
-  num_placements = 0
-  placements = getattr(settings, 'DFP_TARGETED_PLACEMENT_NAMES', None)
-  placements_print = str(placements)
-  if placements is None:
-    placements = []
-    placements_print = "RON"
+    # if no placements are specified, we wil do run of network which is
+    #   effectively one placement
+    num_placements = len(placements)
+    if num_placements == 0:
+        num_placements = 1
+        placements_print = "RON"
 
-  # if no placements are specified, we wil do run of network which is
-  #   effectively one placement
-  num_placements = len(placements)
-  if num_placements == 0:
-      num_placements = 1
-      placements_print = "RON"
+    setup_type = getattr(settings, 'OPENWRAP_SETUP_TYPE', None)
+    if setup_type is None:
+        setup_type = constant.WEB
+    elif setup_type not in [constant.WEB, constant.WEB_SAFEFRAME, constant.WEBINTERSTITIAL, constant.AMP, constant.IN_APP, constant.IN_APP_VIDEO,
+                            constant.IN_APP_NATIVE,
+                            constant.NATIVE, constant.VIDEO, constant.JW_PLAYER, constant.ADPOD]:
+        raise BadSettingException('Unknown OPENWRAP_SETUP_TYPE: {0}'.format(setup_type))
 
-  setup_type = getattr(settings, 'OPENWRAP_SETUP_TYPE', None)
-  if setup_type is None:
-    setup_type = constant.WEB
-  elif setup_type not in [constant.WEB, constant.WEB_SAFEFRAME, constant.AMP, constant.IN_APP, constant.IN_APP_VIDEO, constant.IN_APP_NATIVE,
-    constant.NATIVE, constant.VIDEO, constant.JW_PLAYER, constant.ADPOD]:
-    raise BadSettingException('Unknown OPENWRAP_SETUP_TYPE: {0}'.format(setup_type))
-  
-  deal_config = None
-  deal_lineitem_enabled = False
-  deal_config_type = None
-  if setup_type == constant.ADPOD:
-    deal_lineitem_enabled = getattr(settings, 'ENABLE_DEAL_LINEITEM', False)
-    deal_config_type = getattr(settings, 'DEAL_CONFIG_TYPE', None)
-    deal_config = getattr(settings, 'DEAL_CONFIG', None)
-    adpod_creative_cache_url = getattr(settings, 'ADPOD_CREATIVE_CACHE_URL', constant.DEFAULT_APDOD_CACHE_URL)  
-    constant.ADPOD_VIDEO_VAST_URL =  constant.ADPOD_VIDEO_VAST_URL.replace("{url}",adpod_creative_cache_url)
-  
-  adpod_slots = getattr(settings, 'ADPOD_SLOTS', None)
-  adpod_size = len(adpod_slots)
+    deal_config = None
+    deal_lineitem_enabled = False
+    deal_config_type = None
+    if setup_type == constant.ADPOD:
+        deal_lineitem_enabled = getattr(settings, 'ENABLE_DEAL_LINEITEM', False)
+        deal_config_type = getattr(settings, 'DEAL_CONFIG_TYPE', None)
+        deal_config = getattr(settings, 'DEAL_CONFIG', None)
+        adpod_creative_cache_url = getattr(settings, 'ADPOD_CREATIVE_CACHE_URL', constant.DEFAULT_APDOD_CACHE_URL)
+        constant.ADPOD_VIDEO_VAST_URL = constant.ADPOD_VIDEO_VAST_URL.replace("{url}", adpod_creative_cache_url)
 
-  if setup_type == constant.ADPOD and (adpod_slots == None or len(adpod_slots) == 0):
-    raise MissingSettingException('The setting "ADPOD_SLOTS" must contain alteast one slot.')
+    adpod_slots = getattr(settings, 'ADPOD_SLOTS', None)
+    adpod_size = len(adpod_slots)
 
-  if  (setup_type == constant.ADPOD and deal_lineitem_enabled == True) and lineitem_type != constant.LI_SPONSORSHIP:
-     raise  BadSettingException('DFP_LINEITEM_TYPE should be SPONSORSHIP for creating deal lineitems')
+    if setup_type == constant.ADPOD and (adpod_slots == None or len(adpod_slots) == 0):
+        raise MissingSettingException('The setting "ADPOD_SLOTS" must contain alteast one slot.')
 
-  if (setup_type == constant.ADPOD and deal_lineitem_enabled == True) and (deal_config_type is None or (deal_config_type != constant.DEALTIER and deal_config_type != constant.DEALID)):
-     raise  MissingSettingException('DEAL_CONFIG_TYPE should be {dealtier} or {dealid}'.format(dealtier =constant.DEALTIER, dealid = constant.DEALID))
+    if (setup_type == constant.ADPOD and deal_lineitem_enabled == True) and lineitem_type != constant.LI_SPONSORSHIP:
+        raise BadSettingException('DFP_LINEITEM_TYPE should be SPONSORSHIP for creating deal lineitems')
 
-  if (setup_type == constant.ADPOD and deal_lineitem_enabled == True) and deal_config is None:
-     raise  MissingSettingException('Set valid DEAL_CONFIG for creating deal lineitems')
- 
-  adpod_creative_durations = getattr(settings, 'VIDEO_LENGTHS', None)
-  if setup_type == constant.ADPOD and adpod_creative_durations is None:
-    raise MissingSettingException('VIDEO_LENGTHS')
-  elif setup_type == constant.ADPOD and len(adpod_creative_durations) < 1:
-    raise MissingSettingException('The setting "VIDEO_LENGTHS" must contain alteast one durations.')
+    if (setup_type == constant.ADPOD and deal_lineitem_enabled == True) and (deal_config_type is None or (
+            deal_config_type != constant.DEALTIER and deal_config_type != constant.DEALID)):
+        raise MissingSettingException(
+            'DEAL_CONFIG_TYPE should be {dealtier} or {dealid}'.format(dealtier=constant.DEALTIER,
+                                                                       dealid=constant.DEALID))
 
-  sizes = getattr(settings, 'DFP_PLACEMENT_SIZES', None)
-  if setup_type not in [constant.NATIVE]:
-    if sizes is None:
-        raise MissingSettingException('DFP_PLACEMENT_SIZES')
-    elif setup_type == constant.ADPOD and len(sizes) != 1:
-        raise BadSettingException('The setting "DFP_PLACEMENT_SIZES" '
-        'for ADPOD Setup should only have one size object.')   
-    elif len(sizes) < 1:
-        raise BadSettingException('The setting "DFP_PLACEMENT_SIZES" '
-        'must contain at least one size object.')
+    if (setup_type == constant.ADPOD and deal_lineitem_enabled == True) and deal_config is None:
+        raise MissingSettingException('Set valid DEAL_CONFIG for creating deal lineitems')
 
-  currency_code = getattr(settings, 'DFP_CURRENCY_CODE', 'USD')
+    adpod_creative_durations = getattr(settings, 'VIDEO_LENGTHS', None)
+    if setup_type == constant.ADPOD and adpod_creative_durations is None:
+        raise MissingSettingException('VIDEO_LENGTHS')
+    elif setup_type == constant.ADPOD and len(adpod_creative_durations) < 1:
+        raise MissingSettingException('The setting "VIDEO_LENGTHS" must contain alteast one durations.')
 
-  # How many creatives to attach to each line item. We need at least one
-  # creative per ad unit on a page. See:
-  # https://github.com/kmjennison/dfp-prebid-setup/issues/13
-  num_creatives = (
-    getattr(settings, 'DFP_NUM_CREATIVES_PER_LINE_ITEM', None) or
-    num_placements
-  )
+    sizes = getattr(settings, 'DFP_PLACEMENT_SIZES', None)
+    if setup_type not in [constant.NATIVE]:
+        if sizes is None:
+            raise MissingSettingException('DFP_PLACEMENT_SIZES')
+        elif setup_type == constant.ADPOD and len(sizes) != 1:
+            raise BadSettingException('The setting "DFP_PLACEMENT_SIZES" '
+                                      'for ADPOD Setup should only have one size object.')
+        elif len(sizes) < 1:
+            raise BadSettingException('The setting "DFP_PLACEMENT_SIZES" '
+                                      'must contain at least one size object.')
 
+    currency_code = getattr(settings, 'DFP_CURRENCY_CODE', 'USD')
 
-  # read creative template for native Line-items
-  creative_template = None
-  creative_user_def_var = None
-  if setup_type == constant.NATIVE or setup_type == constant.IN_APP_NATIVE:
-      creative_template = getattr(settings, 'OPENWRAP_CREATIVE_TEMPLATE', None)
-      if creative_template is None:
-        raise MissingSettingException('OPENWRAP_CREATIVE_TEMPLATE')
-      elif not isinstance (creative_template, (list, str)):
-        raise BadSettingException('OPENWRAP_CREATIVE_TEMPLATE')
-      if isinstance (creative_template, str):
-          creative_template = [creative_template]
+    # How many creatives to attach to each line item. We need at least one
+    # creative per ad unit on a page. See:
+    # https://github.com/kmjennison/dfp-prebid-setup/issues/13
+    num_creatives = (
+            getattr(settings, 'DFP_NUM_CREATIVES_PER_LINE_ITEM', None) or
+            num_placements
+    )
 
-      if setup_type == constant.IN_APP_NATIVE:
-        creative_user_def_var = 'pubmatic-ow-signal:%%PATTERN:pwtsid%%'
-      else:
-        creative_user_def_var = getattr(settings, 'OPENWRAP_NATIVE_CREATIVE_USER_DEFINED_VAR', None)
+    # read creative template for native Line-items
+    creative_template = None
+    creative_user_def_var = None
+    if setup_type == constant.NATIVE or setup_type == constant.IN_APP_NATIVE:
+        creative_template = getattr(settings, 'OPENWRAP_CREATIVE_TEMPLATE', None)
+        if creative_template is None:
+            raise MissingSettingException('OPENWRAP_CREATIVE_TEMPLATE')
+        elif not isinstance(creative_template, (list, str)):
+            raise BadSettingException('OPENWRAP_CREATIVE_TEMPLATE')
+        if isinstance(creative_template, str):
+            creative_template = [creative_template]
 
-  bidder_code = getattr(settings, 'PREBID_BIDDER_CODE', None)
-  if bidder_code is not None and not isinstance(bidder_code, (list, tuple, str)):
-    raise BadSettingException('PREBID_BIDDER_CODE')
+        if setup_type == constant.IN_APP_NATIVE:
+            creative_user_def_var = 'pubmatic-ow-signal:%%PATTERN:pwtsid%%'
+        else:
+            creative_user_def_var = getattr(settings, 'OPENWRAP_NATIVE_CREATIVE_USER_DEFINED_VAR', None)
 
-  same_adv_exception = getattr(settings, 'DFP_SAME_ADV_EXCEPTION', False)
-  if not isinstance(same_adv_exception, bool):
-      raise BadSettingException('DFP_SAME_ADV_EXCEPTION')
+    bidder_code = getattr(settings, 'PREBID_BIDDER_CODE', None)
+    if bidder_code is not None and not isinstance(bidder_code, (list, tuple, str)):
+        raise BadSettingException('PREBID_BIDDER_CODE')
 
-  device_categories = getattr(settings, 'DFP_DEVICE_CATEGORIES', None)
-  if device_categories is not None and not isinstance(device_categories, (list, tuple, str)):
-       raise BadSettingException('DFP_DEVICE_CATEGORIES')
+    same_adv_exception = getattr(settings, 'DFP_SAME_ADV_EXCEPTION', False)
+    if not isinstance(same_adv_exception, bool):
+        raise BadSettingException('DFP_SAME_ADV_EXCEPTION')
 
-  device_capabilities = None
-  roadblock_type = getattr(settings, 'DFP_ROADBLOCK_TYPE', 'ONE_OR_MORE')
-  if roadblock_type not in ('ONE_OR_MORE', 'AS_MANY_AS_POSSIBLE'):
-      raise BadSettingException('DFP_ROADBLOCK_TYPE')
+    device_categories = getattr(settings, 'DFP_DEVICE_CATEGORIES', None)
+    if device_categories is not None and not isinstance(device_categories, (list, tuple, str)):
+        raise BadSettingException('DFP_DEVICE_CATEGORIES')
 
-  lineitem_prefix = getattr(settings, 'LINE_ITEM_PREFIX', None)
-  if lineitem_prefix != None:
-      if not isinstance(lineitem_prefix, (str)):
-        raise BadSettingException('LINE_ITEM_PREFIX')
+    device_capabilities = None
+    roadblock_type = getattr(settings, 'DFP_ROADBLOCK_TYPE', 'ONE_OR_MORE')
+    if roadblock_type not in ('ONE_OR_MORE', 'AS_MANY_AS_POSSIBLE'):
+        raise BadSettingException('DFP_ROADBLOCK_TYPE')
 
-  use_1x1 = getattr(settings, 'OPENWRAP_USE_1x1_CREATIVE', False)
-  if not isinstance(use_1x1, bool):
-      raise BadSettingException('OPENWRAP_USE_1x1_CREATIVE')
-  
-  video_position_type = None
-  if setup_type in (constant.ADPOD, constant.VIDEO):
-      video_position_type =  getattr(settings, 'VIDEO_POSITION_TYPE', None) 
-      if video_position_type is not None and video_position_type not in (constant.PREROLL, constant.MIDROLL, constant.POSTROLL) :
-        raise  BadSettingException('VIDEO_POSITION_TYPE should have one of these values: {preroll}, {midroll}, {postroll} or {all}'.format(preroll =constant.PREROLL, midroll = constant.MIDROLL, postroll = constant.POSTROLL, all = constant.ALL))
+    lineitem_prefix = getattr(settings, 'LINE_ITEM_PREFIX', None)
+    if lineitem_prefix != None:
+        if not isinstance(lineitem_prefix, (str)):
+            raise BadSettingException('LINE_ITEM_PREFIX')
 
-  custom_targeting = getattr(settings, 'OPENWRAP_CUSTOM_TARGETING', None)
-  if custom_targeting != None:
-      if not isinstance(custom_targeting, (list, tuple)):
-          raise BadSettingException('OPENWRAP_CUSTOM_TARGETING')
+    use_1x1 = getattr(settings, 'OPENWRAP_USE_1x1_CREATIVE', False)
+    if not isinstance(use_1x1, bool):
+        raise BadSettingException('OPENWRAP_USE_1x1_CREATIVE')
 
-      for ct in custom_targeting:
-         if len(ct) != 3:
-             raise BadSettingException('OPENWRAP_CUSTOM_TARGETING')
+    video_position_type = None
+    if setup_type in (constant.ADPOD, constant.VIDEO):
+        video_position_type = getattr(settings, 'VIDEO_POSITION_TYPE', None)
+        if video_position_type is not None and video_position_type not in (
+        constant.PREROLL, constant.MIDROLL, constant.POSTROLL):
+            raise BadSettingException(
+                'VIDEO_POSITION_TYPE should have one of these values: {preroll}, {midroll}, {postroll} or {all}'.format(
+                    preroll=constant.PREROLL, midroll=constant.MIDROLL, postroll=constant.POSTROLL, all=constant.ALL))
 
-         if ct[1] != "IS" and ct[1] != "IS_NOT":
-             raise BadSettingException('OPENWRAP_CUSTOM_TARGETING')
+    custom_targeting = getattr(settings, 'OPENWRAP_CUSTOM_TARGETING', None)
+    if custom_targeting != None:
+        if not isinstance(custom_targeting, (list, tuple)):
+            raise BadSettingException('OPENWRAP_CUSTOM_TARGETING')
 
-         if not isinstance(ct[2], (list, tuple, str, bool)):
-             raise BadSettingException('OPENWRAP_CUSTOM_TARGETING - {0}'.format(type(ct[2])))
+        for ct in custom_targeting:
+            if len(ct) != 3:
+                raise BadSettingException('OPENWRAP_CUSTOM_TARGETING')
 
-  prices = None  
-  # Calculate price only for price based lineitems   
-  if deal_lineitem_enabled == False :
-    price_buckets_csv = getattr(settings, 'OPENWRAP_BUCKET_CSV', None)
-    if price_buckets_csv is None:
-        raise MissingSettingException('OPENWRAP_BUCKET_CSV')
+            if ct[1] != "IS" and ct[1] != "IS_NOT":
+                raise BadSettingException('OPENWRAP_CUSTOM_TARGETING')
 
-    prices = load_price_csv(price_buckets_csv, setup_type)
+            if not isinstance(ct[2], (list, tuple, str, bool)):
+                raise BadSettingException('OPENWRAP_CUSTOM_TARGETING - {0}'.format(type(ct[2])))
 
+    prices = None
     prices_summary = []
-    for p in prices:
-        prices_summary.append(p['rate'])
+    # Calculate price only for price based lineitems
+    if deal_lineitem_enabled == False:
+        price_buckets_csv = getattr(settings, 'OPENWRAP_BUCKET_CSV', None)
+        if price_buckets_csv is None:
+            raise MissingSettingException('OPENWRAP_BUCKET_CSV')
+
+        prices = load_price_csv(price_buckets_csv, setup_type)
+
+        for p in prices:
+            prices_summary.append(p['rate'])
+
+    # Automatically handle batching for non-ADPOD setups when prices exceed limit
+    price_batches = []
+    if prices is not None and len(prices) > constant.LINE_ITEMS_LIMIT and setup_type != constant.ADPOD:
+        logger.info('\n Info: {} Lineitems will be created. This exceeds the line items count per order of {}.\n'
+              .format(len(prices), constant.LINE_ITEMS_LIMIT))
+        logger.info(' Automatically splitting into batches and creating multiple orders...\n')
+        
+        # Split prices into batches of LINE_ITEMS_LIMIT
+        for i in range(0, len(prices), constant.LINE_ITEMS_LIMIT):
+            batch = prices[i:i + constant.LINE_ITEMS_LIMIT]
+            price_batches.append(batch)
+    elif prices is not None:
+        # Single batch if under limit
+        price_batches = [prices]
+    else:
+        # For deal line items, prices might be None - set empty batch list
+        price_batches = []
+
+    # set bidder_code, custom_targetting, device categories to None when setup_type is IN-APP, JW_PLAYER
+    # default roadblock_type to ONE_OR_MORE when setup_type is VIDEO, JW_PLAYER
+    # default roadblock type to 'AS_MANY_AS_POSSIBLE' when setup_type is in-app
+
+    if setup_type == constant.IN_APP:
+        roadblock_type = 'AS_MANY_AS_POSSIBLE'
+        device_categories = None
+    elif setup_type == constant.IN_APP_VIDEO:
+        roadblock_type = 'ONE_OR_MORE'
+        device_categories = None
+    elif setup_type == constant.JW_PLAYER:
+        roadblock_type = 'ONE_OR_MORE'
+        bidder_code = ['pubmatic']
+        custom_targeting = None
+        device_categories = None
+    elif setup_type == constant.VIDEO:
+        roadblock_type = 'ONE_OR_MORE'
+    elif setup_type == constant.ADPOD:
+        roadblock_type = 'ONE_OR_MORE'
+
+    if deal_lineitem_enabled == False:
+        # Prininting non adpod lineitem summary
+        order_info = order_name
+        if len(price_batches) > 1:
+            order_info = "{} ({} orders will be created: {}_1, {}_2, ...)".format(
+                order_name, len(price_batches), order_name, order_name)
+        
+        logger.info(
+            u"""
     
-    if len(prices) > constant.LINE_ITEMS_LIMIT and setup_type != constant.ADPOD:
-        print('\n Error: {} Lineitems will be created. This is exceeding Line items count per order of {}!\n'
-        .format(len(prices),constant.LINE_ITEMS_LIMIT)) 
+            Going to create {name_start_format}{num_line_items}{format_end} new line items.
+            {name_start_format}Order{format_end}: {value_start_format}{order_info}{format_end}
+            {name_start_format}Advertiser{format_end}: {value_start_format}{advertiser}{format_end}
+            {name_start_format}Advertiser Type{format_end}: {value_start_format}{advertiser_type}{format_end}
+            {name_start_format}LineItem Type{format_end}: {value_start_format}{lineitem_type}{format_end}
+            {name_start_format}LineItem Prefix{format_end}: {value_start_format}{lineitem_prefix}{format_end}
+            {name_start_format}Setup Type{format_end} = {value_start_format}{setup_type}{format_end}
+            {name_start_format}Use 1x1 Creative{format_end} = {value_start_format}{use_1x1}{format_end}
+    
+            Line items will have targeting:
+            {name_start_format}rates{format_end} = {value_start_format}{prices_summary}{format_end}
+            {name_start_format}bidders{format_end} = {value_start_format}{bidder_code}{format_end}
+            {name_start_format}placements{format_end} = {value_start_format}{placements}{format_end}
+            {name_start_format}custom targeting{format_end} = {value_start_format}{custom_targeting}{format_end}
+            {name_start_format}same advertiser exception{format_end} = {value_start_format}{same_adv_exception}{format_end}
+            {name_start_format}device categories{format_end} = {value_start_format}{device_categories}{format_end}
+            {name_start_format}device capabilities{format_end} = {value_start_format}{device_capabilities}{format_end}
+            {name_start_format}roadblock type{format_end} = {value_start_format}{roadblock_type}{format_end}
+            {name_start_format}video position type{format_end} = {value_start_format}{video_position_type}{format_end}
+            """.format(
+                num_line_items=len(prices) if prices else 0,
+                order_name=order_name,
+                order_info=order_info,
+                advertiser=advertiser_name,
+                advertiser_type=advertiser_type,
+                lineitem_type=lineitem_type,
+                lineitem_prefix=lineitem_prefix,
+                setup_type=setup_type,
+                user_email=user_email,
+                prices_summary=prices_summary,
+                bidder_code=bidder_code,
+                placements=placements_print,
+                sizes=sizes,
+                custom_targeting=custom_targeting,
+                same_adv_exception=same_adv_exception,
+                device_categories=device_categories,
+                device_capabilities=device_capabilities,
+                roadblock_type=roadblock_type,
+                use_1x1=use_1x1,
+                name_start_format=color.BOLD,
+                format_end=color.END,
+                value_start_format=color.BLUE,
+                video_position_type=video_position_type
+            ))
+
+        if setup_type == constant.ADPOD:
+            # Prininting adpod price based lineitem summary
+            logger.info(
+                u"""
+                ADPOD Details :
+                {name_start_format}Adpod Size{format_end}: {value_start_format}{adpod_size}{format_end}
+                {name_start_format}Adpod creative Durations{format_end}: {adpod_creative_durations}{format_end}
+                {name_start_format}Line Item per each slot{format_end}: {value_start_format}{lineitem_per_slot}{format_end}
+                {name_start_format}Creatives per each slot{format_end}: {value_start_format}{creatives_per_slot}{format_end}
+                {name_start_format}Total number of Line Items{format_end}: {value_start_format}{lineitem_total}{format_end}
+                {name_start_format}Total number of Creatives{format_end}: {value_start_format}{creatives_total}{format_end}      
+                """.format(
+                    adpod_size=adpod_size,
+                    lineitem_per_slot=len(prices),
+                    adpod_creative_durations=adpod_creative_durations,
+                    creatives_per_slot=len(adpod_creative_durations),
+                    lineitem_total=len(prices) * adpod_size,
+                    creatives_total=adpod_size * len(adpod_creative_durations),
+                    name_start_format=color.BOLD,
+                    format_end=color.END,
+                    value_start_format=color.BLUE,
+                ))
+    else:
+        # Prininting adpod deal lineitem summary
+        print_summary(order_name, advertiser_name, advertiser_type, adpod_size, adpod_creative_durations, deal_config,
+                      adpod_slots, lineitem_type, lineitem_prefix,
+                      setup_type, user_email, placements_print, sizes, custom_targeting, same_adv_exception,
+                      bidder_code, roadblock_type, deal_config_type, video_position_type)
+
+    # Auto-confirm when AUTO_CONFIRM env var is set (used by the Flask wrapper)
+    if os.environ.get('AUTO_CONFIRM', '').lower() == 'true':
+        ok = 'y'
+        logger.info('AUTO_CONFIRM enabled; skipping manual confirmation.')
+    else:
+        ok = input('Is this correct? (y/n)\n')
+
+    if ok != 'y':
+        logger.info('Exiting.')
         return
 
-  # set bidder_code, custom_targetting, device categories to None when setup_type is IN-APP, JW_PLAYER
-  # default roadblock_type to ONE_OR_MORE when setup_type is VIDEO, JW_PLAYER
-  # default roadblock type to 'AS_MANY_AS_POSSIBLE' when setup_type is in-app
-
-  if setup_type == constant.IN_APP:
-      roadblock_type = 'AS_MANY_AS_POSSIBLE'
-      device_categories = None
-  elif setup_type == constant.IN_APP_VIDEO:
-      roadblock_type = 'ONE_OR_MORE'
-      device_categories = None
-  elif setup_type == constant.JW_PLAYER:
-      roadblock_type = 'ONE_OR_MORE'
-      bidder_code = ['pubmatic']
-      custom_targeting = None
-      device_categories = None
-  elif setup_type == constant.VIDEO:
-      roadblock_type = 'ONE_OR_MORE'
-  elif setup_type == constant.ADPOD:
-      roadblock_type = 'ONE_OR_MORE'
-
-    
-  if deal_lineitem_enabled == False: 
-    # Prininting non adpod lineitem summary
-    logger.info(
-        u"""
-
-        Going to create {name_start_format}{num_line_items}{format_end} new line items.
-        {name_start_format}Order{format_end}: {value_start_format}{order_name}{format_end}
-        {name_start_format}Advertiser{format_end}: {value_start_format}{advertiser}{format_end}
-        {name_start_format}Advertiser Type{format_end}: {value_start_format}{advertiser_type}{format_end}
-        {name_start_format}LineItem Type{format_end}: {value_start_format}{lineitem_type}{format_end}
-        {name_start_format}LineItem Prefix{format_end}: {value_start_format}{lineitem_prefix}{format_end}
-        {name_start_format}Setup Type{format_end} = {value_start_format}{setup_type}{format_end}
-        {name_start_format}Use 1x1 Creative{format_end} = {value_start_format}{use_1x1}{format_end}
-            
-        Line items will have targeting:
-        {name_start_format}rates{format_end} = {value_start_format}{prices_summary}{format_end}
-        {name_start_format}bidders{format_end} = {value_start_format}{bidder_code}{format_end}
-        {name_start_format}placements{format_end} = {value_start_format}{placements}{format_end}
-        {name_start_format}custom targeting{format_end} = {value_start_format}{custom_targeting}{format_end}
-        {name_start_format}same advertiser exception{format_end} = {value_start_format}{same_adv_exception}{format_end}
-        {name_start_format}device categories{format_end} = {value_start_format}{device_categories}{format_end}
-        {name_start_format}device capabilities{format_end} = {value_start_format}{device_capabilities}{format_end}
-        {name_start_format}roadblock type{format_end} = {value_start_format}{roadblock_type}{format_end}
-        {name_start_format}video position type{format_end} = {value_start_format}{video_position_type}{format_end}
-        """.format(
-        num_line_items = len(prices),
-        order_name=order_name,
-        advertiser=advertiser_name,
-        advertiser_type=advertiser_type,
-        lineitem_type=lineitem_type,
-        lineitem_prefix=lineitem_prefix,
-        setup_type=setup_type,
-        user_email=user_email,
-        prices_summary=prices_summary,
-        bidder_code=bidder_code,
-        placements=placements_print,
-        sizes=sizes,
-        custom_targeting=custom_targeting,
-        same_adv_exception=same_adv_exception,
-        device_categories=device_categories,
-        device_capabilities=device_capabilities,
-        roadblock_type=roadblock_type,
-        use_1x1=use_1x1,
-        name_start_format=color.BOLD,
-        format_end=color.END,
-        value_start_format=color.BLUE,
-        video_position_type  = video_position_type
-        ))
-
-    if setup_type == constant.ADPOD:
-        # Prininting adpod price based lineitem summary
-        logger.info(
-        u"""
-        ADPOD Details :
-        {name_start_format}Adpod Size{format_end}: {value_start_format}{adpod_size}{format_end}
-        {name_start_format}Adpod creative Durations{format_end}: {adpod_creative_durations}{format_end}
-        {name_start_format}Line Item per each slot{format_end}: {value_start_format}{lineitem_per_slot}{format_end}
-        {name_start_format}Creatives per each slot{format_end}: {value_start_format}{creatives_per_slot}{format_end}
-        {name_start_format}Total number of Line Items{format_end}: {value_start_format}{lineitem_total}{format_end}
-        {name_start_format}Total number of Creatives{format_end}: {value_start_format}{creatives_total}{format_end}      
-        """.format(
-            adpod_size = adpod_size,
-            lineitem_per_slot = len(prices),
-            adpod_creative_durations = adpod_creative_durations,
-            creatives_per_slot= len(adpod_creative_durations),
-            lineitem_total = len(prices)*adpod_size,
-            creatives_total= adpod_size * len(adpod_creative_durations),
-            name_start_format=color.BOLD,
-            format_end=color.END,
-            value_start_format=color.BLUE,
-        ))
-  else:
-    # Prininting adpod deal lineitem summary
-    print_summary(order_name,advertiser_name,advertiser_type,adpod_size, adpod_creative_durations, deal_config, adpod_slots, lineitem_type,  lineitem_prefix,
-        setup_type, user_email, placements_print, sizes, custom_targeting, same_adv_exception, bidder_code, roadblock_type, deal_config_type, video_position_type) 
-        
-  ok = input('Is this correct? (y/n)\n')
-
-  if ok != 'y':
-    logger.info('Exiting.')
-    return
-
-  try:
-    if setup_type == constant.ADPOD: 
-        for i in adpod_slots:
-            slot = "s{}".format(i) 
-            setup_partner(
+    try:
+        if setup_type == constant.ADPOD:
+            for i in adpod_slots:
+                slot = "s{}".format(i)
+                setup_partner(
                     user_email,
                     advertiser_name,
                     advertiser_type,
@@ -1511,24 +1620,40 @@ def main():
                     deal_lineitem_enabled,
                     deal_config_type,
                     video_position_type
-            )
+                )
 
-            if deal_lineitem_enabled == False:
-                logger.info(""" 
+                if deal_lineitem_enabled == False:
+                    logger.info(""" 
 
-                Orders Created: """ + str(order_list))    
-    else:
-        setup_partner(
+                Orders Created: """ + str(order_list))
+        else:
+            # Process batches if multiple orders are needed
+            import time
+            batch_order_list = []
+            
+            for batch_num, price_batch in enumerate(price_batches, start=1):
+                # Create order name with batch number if multiple batches
+                # Use the base order_name from settings and append batch number
+                if len(price_batches) > 1:
+                    batch_order_name = "{}_{}".format(order_name, batch_num)
+                    logger.info('\n Processing batch {}/{}: {} line items in order "{}" (base order name: "{}")...\n'
+                              .format(batch_num, len(price_batches), len(price_batch), batch_order_name, order_name))
+                else:
+                    batch_order_name = order_name
+                    logger.info('\n Processing single batch: {} line items in order "{}"...\n'
+                              .format(len(price_batch), batch_order_name))
+                
+                setup_partner(
                     user_email,
                     advertiser_name,
                     advertiser_type,
-                    order_name,
+                    batch_order_name,
                     placements,
                     sizes,
                     lineitem_type,
                     lineitem_prefix,
                     bidder_code,
-                    prices,
+                    price_batch,
                     setup_type,
                     creative_template,
                     num_creatives,
@@ -1546,23 +1671,38 @@ def main():
                     deal_lineitem_enabled,
                     None,
                     video_position_type
-            )  
-    logger.info("""
+                )
+                
+                batch_order_list.append(batch_order_name)
+                
+                # Sleep between batches to avoid rate limiting (except for last batch)
+                if batch_num < len(price_batches):
+                    sleep_time = 2  # 2 seconds between batches
+                    logger.info(' Waiting {} seconds before processing next batch...\n'.format(sleep_time))
+                    time.sleep(sleep_time)
+            
+            # Log all created orders
+            if len(price_batches) > 1:
+                logger.info(""" 
+
+                All batches completed! Orders Created: """ + str(batch_order_list))
+        logger.info("""
 
     Done! Please review your orders, line items, and creatives to
     make sure they are correct. Then, approve the order in DFP.
 
     Happy bidding!
 
-    """)    
-  except ConnectionError as e:
-      logger.error('\nConnection Error. Please try again after some time! Err: \n{}'.format(e))
-  except GoogleAdsServerFault as e:
-      if "ServerError.SERVER_ERROR" in str(e):
-        logger.error('\n\nDFP Server Error. Please try again after some time! Err: \n{}'.format(e))
-      else:
-        raise DFPException("\n\nError occured while creating Lineitems in DFP: \n {}".format(e))
+    """)
+    except ConnectionError as e:
+        logger.error('\nConnection Error. Please try again after some time! Err: \n{}'.format(e))
+    except GoogleAdsServerFault as e:
+        if "ServerError.SERVER_ERROR" in str(e):
+            logger.error('\n\nDFP Server Error. Please try again after some time! Err: \n{}'.format(e))
+        else:
+            raise DFPException("\n\nError occured while creating Lineitems in DFP: \n {}".format(e))
+
 
 if __name__ == '__main__':
-  main()
-  
+    main()
+

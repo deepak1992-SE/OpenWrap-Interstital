@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DFP Line Item Generator - PubMatic Internal Team</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="pubmatic-logo">
+    <img src="https://pubmatic.com/wp-content/themes/pubmatic/imgs/logo-black.svg" alt="PubMatic Logo" onerror="this.style.display='none'">
+</div>
+<h1>DFP Line Item Generator<span class="internal-team-badge">Internal Team</span></h1>
+            <p class="subtitle">Configure settings and generate line items for Google Ad Manager</p>
+            <div class="user-info">
+                <span>Logged in as: <strong id="username-display">{% if username %}{{ username }}{% endif %}</strong></span>
+                <a href="/logout" class="logout-link">Logout</a>
+            </div>
+        </header>
+
+        <form id="lineItemForm" class="form-container">
+            <!-- Section 1: Authentication & Partner Type -->
+            <div class="section" id="section-1">
+                <div class="section-header">
+                    <h2>1. Authentication & Partner Type</h2>
+                </div>
+                
+                <div class="form-group">
+                    <label for="client_name">Client Name</label>
+                    <input type="text" id="client_name" name="client_name" 
+                           placeholder="e.g., ABC Company">
+                    <small>Optional: Enter client name for tracking and organization</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="DFP_NETWORK_CODE">Network Code *</label>
+                    <input type="text" id="DFP_NETWORK_CODE" name="DFP_NETWORK_CODE" required 
+                           placeholder="e.g., 23202412718">
+                    <small>Enter your Google Ad Manager Network Code (found in your GAM URL or Admin > Global Settings)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="key-json-upload">Service Account Key</label>
+                    <div class="file-upload-area">
+                        <input type="file" id="key-json-upload" accept=".json" style="display: none;">
+                        <button type="button" class="btn-secondary" onclick="document.getElementById('key-json-upload').click()">
+                            Upload key.json
+                        </button>
+                        <div id="key-json-preview" class="file-preview"></div>
+                    </div>
+                    <small>Upload your service account JSON key file.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="DFP_USER_EMAIL_ADDRESS">Google Ad Manager Trafficker Email *</label>
+                    <input type="email" id="DFP_USER_EMAIL_ADDRESS" name="DFP_USER_EMAIL_ADDRESS" required 
+                           placeholder="user@example.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="partner_type">Partner Type *</label>
+                    <select id="partner_type" name="partner_type" required>
+                        <option value="openwrap">OpenWrap</option>
+                        <option value="prebid">Prebid</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Section 2: DFP Settings - General (Advertiser and Order) -->
+            <div class="section" id="section-2">
+                <div class="section-header">
+                    <h2>2. DFP Settings - General</h2>
+                    <p class="section-subtitle">Advertiser and Order Configuration</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="DFP_ADVERTISER_NAME">Advertiser Name *</label>
+                    <input type="text" id="DFP_ADVERTISER_NAME" name="DFP_ADVERTISER_NAME" required 
+                           placeholder="e.g., PubMatic-OW_New">
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="DFP_CREATE_ADVERTISER_IF_DOES_NOT_EXIST" 
+                               name="DFP_CREATE_ADVERTISER_IF_DOES_NOT_EXIST" checked>
+                        Create advertiser if it doesn't exist
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="DFP_ADVERTISER_TYPE">Advertiser Type</label>
+                    <select id="DFP_ADVERTISER_TYPE" name="DFP_ADVERTISER_TYPE">
+                        <option value="ADVERTISER">ADVERTISER</option>
+                        <option value="AD_NETWORK">AD_NETWORK</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="DFP_ORDER_NAME">Order Name *</label>
+                    <input type="text" id="DFP_ORDER_NAME" name="DFP_ORDER_NAME" required 
+                           placeholder="e.g., PMOW_AMP_DisplayP12_0.01_1">
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="DFP_USE_EXISTING_ORDER_IF_EXISTS" 
+                               name="DFP_USE_EXISTING_ORDER_IF_EXISTS" checked>
+                        Use existing order if it exists
+                    </label>
+                </div>
+            </div>
+
+            <!-- Section 3: Line Item Targeting -->
+            <div class="section" id="section-3">
+                <div class="section-header">
+                    <h2>3. Line Item Targeting</h2>
+                </div>
+
+                <div class="form-group">
+                    <label for="LINE_ITEM_PREFIX">Line Item Prefix</label>
+                    <input type="text" id="LINE_ITEM_PREFIX" name="LINE_ITEM_PREFIX" 
+                           placeholder="Optional prefix for line item names">
+                </div>
+
+                <div class="form-group">
+                    <label for="DFP_LINEITEM_TYPE">Line Item Type *</label>
+                    <select id="DFP_LINEITEM_TYPE" name="DFP_LINEITEM_TYPE" required>
+                        <option value="PRICE_PRIORITY">PRICE_PRIORITY</option>
+                        <option value="SPONSORSHIP">SPONSORSHIP</option>
+                        <option value="NETWORK">NETWORK</option>
+                        <option value="HOUSE">HOUSE</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="DFP_PLACEMENT_SIZES">Ad Size Addition (Placement Sizes) *</label>
+                    <div id="sizes-container">
+                        <div class="size-input">
+                            <input type="number" placeholder="Width" class="size-width" min="1" required>
+                            <span>x</span>
+                            <input type="number" placeholder="Height" class="size-height" min="1" required>
+                            <button type="button" class="btn-remove" onclick="removeSize(this)">Remove</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-secondary" onclick="addSize()">Add Size</button>
+                    <small>Format: width x height (e.g., 728x90)</small>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="DFP_SAME_ADV_EXCEPTION" 
+                               name="DFP_SAME_ADV_EXCEPTION">
+                        Same Advertiser Exception
+                    </label>
+                </div>
+
+<div class="form-group">
+                    <label for="DFP_ROADBLOCK_TYPE">Roadblock Type</label>
+                    <select id="DFP_ROADBLOCK_TYPE" name="DFP_ROADBLOCK_TYPE">
+                        <option value="ONE_OR_MORE">ONE_OR_MORE</option>
+                        <option value="AS_MANY_AS_POSSIBLE">AS_MANY_AS_POSSIBLE</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="DFP_CURRENCY_CODE">Currency Code</label>
+                    <input type="text" id="DFP_CURRENCY_CODE" name="DFP_CURRENCY_CODE" 
+                           value="USD" maxlength="3" placeholder="USD">
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="CURRENCY_EXCHANGE" 
+                               name="CURRENCY_EXCHANGE" checked>
+                        Enable Currency Exchange
+                    </label>
+                </div>
+
+                <div class="form-group" id="bidder-code-group" style="display: none;">
+                    <label for="PREBID_BIDDER_CODE">Bidder Code(s)</label>
+                    <input type="text" id="PREBID_BIDDER_CODE" name="PREBID_BIDDER_CODE" 
+                           placeholder="e.g., pubmatic or pubmatic,rubicon (comma-separated for multiple)">
+                    <small>Only for Prebid setup. Leave empty for all bidders.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="DFP_TARGETED_PLACEMENT_NAMES">Targeted Placements</label>
+                    <textarea id="DFP_TARGETED_PLACEMENT_NAMES" name="DFP_TARGETED_PLACEMENT_NAMES" 
+                              rows="3" placeholder="Comma-separated placement names (leave empty for Run of Network)"></textarea>
+                    <small>Leave empty for Run of Network (RON)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="DFP_TARGETED_GEO">Targeted GEO</label>
+                    <input type="text" id="DFP_TARGETED_GEO" name="DFP_TARGETED_GEO" 
+                           placeholder="e.g., US,GB,IN (comma-separated country codes)">
+                    <small>Enter country codes separated by commas (e.g., US,GB,IN)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="DFP_DEVICE_CATEGORIES">Targeted Device Categories</label>
+                    <input type="text" id="DFP_DEVICE_CATEGORIES" name="DFP_DEVICE_CATEGORIES" 
+                           placeholder="e.g., Desktop,Smartphone,Tablet (comma-separated)">
+                    <small>Valid values: Connected TV, Desktop, Feature Phone, Set Top Box, Smartphone, Tablet</small>
+                </div>
+            </div>
+
+            <!-- Section 4: Price Bucket CSV File Management -->
+            <div class="section" id="section-4">
+                <div class="section-header">
+                    <h2>4. Price Bucket CSV File Management</h2>
+                </div>
+
+                <div class="form-group">
+                    <label>CSV File Management</label>
+                    <div class="csv-file-management">
+                        <div class="csv-file-list-container">
+                            <label>Available CSV Files:</label>
+                            <select id="csv-file-selector" class="csv-file-selector">
+                                <option value="">Select a CSV file...</option>
+                            </select>
+                            <button type="button" class="btn-secondary" onclick="loadCSVFiles()">Refresh List</button>
+                        </div>
+                        <div class="file-upload-area">
+                            <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
+                            <button type="button" class="btn-secondary" onclick="document.getElementById('csv-file-input').click()">
+                                Upload New CSV
+                            </button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="OPENWRAP_BUCKET_CSV" name="OPENWRAP_BUCKET_CSV" value="LineItem.csv">
+                </div>
+
+                <div class="form-group">
+                    <label>CSV Table Editor</label>
+                    <div class="csv-table-container">
+                        <table class="csv-table" id="csv-table">
+                            <thead>
+                                <tr>
+                                    <th>Start Range</th>
+                                    <th>End Range</th>
+                                    <th>Granularity</th>
+                                    <th>Rate ID</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="csv-table-body">
+                                <!-- Rows will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                        <div class="csv-table-actions">
+                            <button type="button" class="btn-secondary btn-add-row" onclick="addCSVRow()">Add Row</button>
+                            <button type="button" class="btn-secondary" onclick="saveCSVTable()">Save CSV</button>
+                        </div>
+                    </div>
+                    <small>Edit values directly in the table. Use -1 for granularity in the final range.</small>
+                </div>
+
+                <div class="form-group" id="prebid-price-buckets-group" style="display: none;">
+                    <label>Prebid Price Buckets</label>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="pb_precision">Precision</label>
+                            <input type="number" id="pb_precision" name="pb_precision" value="2" min="0" step="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="pb_min">Min</label>
+                            <input type="number" id="pb_min" name="pb_min" value="8" min="0" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label for="pb_max">Max</label>
+                            <input type="number" id="pb_max" name="pb_max" value="20" min="0" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label for="pb_increment">Increment</label>
+                            <input type="number" id="pb_increment" name="pb_increment" value="0.50" min="0" step="0.01">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 5: Creative Settings -->
+            <div class="section" id="section-5">
+                <div class="section-header">
+                    <h2>5. Creative Settings</h2>
+                </div>
+
+                <div class="form-group">
+                    <label for="DFP_NUM_CREATIVES_PER_LINE_ITEM">Number of Creatives per Line Item</label>
+                    <input type="number" id="DFP_NUM_CREATIVES_PER_LINE_ITEM" 
+                           name="DFP_NUM_CREATIVES_PER_LINE_ITEM" value="1" min="1">
+                </div>
+
+                <div class="form-group">
+                    <label for="OPENWRAP_SETUP_TYPE">Setup Type *</label>
+                    <select id="OPENWRAP_SETUP_TYPE" name="OPENWRAP_SETUP_TYPE" required>
+                        <option value="WEB">WEB</option>
+                        <option value="WEB_SAFEFRAME">WEB_SAFEFRAME</option>
+                        <option value="WEBINTERSTITIAL">WEBINTERSTITIAL</option>
+                        <option value="AMP">AMP</option>
+                        <option value="IN_APP">IN_APP</option>
+                        <option value="IN_APP_VIDEO">IN_APP_VIDEO</option>
+                        <option value="IN_APP_NATIVE">IN_APP_NATIVE</option>
+                        <option value="NATIVE">NATIVE</option>
+                        <option value="VIDEO">VIDEO</option>
+                        <option value="JWPLAYER">JWPLAYER</option>
+                        <option value="ADPOD">ADPOD</option>
+                        <option value="CUSTOM">Custom</option>
+                    </select>
+                </div>
+
+                <div class="form-group custom-field-group" id="custom-setup-type-group" style="display: none;">
+                    <label for="OPENWRAP_CUSTOM_SETUP_TYPE">Custom Setup Type *</label>
+                    <input type="text" id="OPENWRAP_CUSTOM_SETUP_TYPE" name="OPENWRAP_CUSTOM_SETUP_TYPE" 
+                           placeholder="Enter custom setup type">
+                    <small>Enter your custom setup type value</small>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="OPENWRAP_USE_1x1_CREATIVE" 
+                               name="OPENWRAP_USE_1x1_CREATIVE">
+                        Use 1x1 Creative (with size overrides)
+                    </label>
+                </div>
+
+                <!-- Additional fields that show/hide based on setup type -->
+                <div class="form-group" id="creative-template-group" style="display: none;">
+                    <label for="OPENWRAP_CREATIVE_TEMPLATE">Creative Template</label>
+                    <input type="text" id="OPENWRAP_CREATIVE_TEMPLATE" name="OPENWRAP_CREATIVE_TEMPLATE" 
+                           placeholder="e.g., Native-OW-Web (comma-separated for multiple)">
+                    <small>Required for NATIVE and IN_APP_NATIVE setup types</small>
+                </div>
+
+                <div class="form-group" id="native-var-group" style="display: none;">
+                    <label for="OPENWRAP_NATIVE_CREATIVE_USER_DEFINED_VAR">Native Creative User Defined Variable</label>
+                    <input type="text" id="OPENWRAP_NATIVE_CREATIVE_USER_DEFINED_VAR" 
+                           name="OPENWRAP_NATIVE_CREATIVE_USER_DEFINED_VAR" 
+                           placeholder="e.g., pubmatic-ow-signal:%%PATTERN:pwtsid%%">
+                </div>
+
+                <div class="form-group" id="video-lengths-group" style="display: none;">
+                    <label for="VIDEO_LENGTHS">Video Lengths (seconds)</label>
+                    <input type="text" id="VIDEO_LENGTHS" name="VIDEO_LENGTHS" 
+                           placeholder="e.g., 10,15,30 (comma-separated)">
+                    <small>Required for ADPOD setup type</small>
+                </div>
+
+                <div class="form-group" id="adpod-slots-group" style="display: none;">
+                    <label for="ADPOD_SLOTS">ADPOD Slots</label>
+                    <input type="text" id="ADPOD_SLOTS" name="ADPOD_SLOTS" 
+                           placeholder="e.g., 1,2,3 (comma-separated slot numbers)">
+                    <small>Required for ADPOD setup type</small>
+                </div>
+
+                <div class="form-group" id="video-position-group" style="display: none;">
+                    <label for="VIDEO_POSITION_TYPE">Video Position Type</label>
+                    <select id="VIDEO_POSITION_TYPE" name="VIDEO_POSITION_TYPE">
+                        <option value="">None</option>
+                        <option value="PREROLL">PREROLL</option>
+                        <option value="MIDROLL">MIDROLL</option>
+                        <option value="POSTROLL">POSTROLL</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="deal-lineitem-group" style="display: none;">
+                    <h3>Deal Line Item Settings (ADPOD only)</h3>
+                    
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="ENABLE_DEAL_LINEITEM" 
+                                   name="ENABLE_DEAL_LINEITEM">
+                            Enable Deal Line Item
+                        </label>
+                    </div>
+
+                    <div class="form-group" id="deal-config-type-group" style="display: none;">
+                        <label for="DEAL_CONFIG_TYPE">Deal Config Type</label>
+                        <select id="DEAL_CONFIG_TYPE" name="DEAL_CONFIG_TYPE">
+                            <option value="">None</option>
+                            <option value="DEALID">DEALID</option>
+                            <option value="DEALTIER">DEALTIER</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="deal-config-group" style="display: none;">
+                        <label for="DEAL_CONFIG">Deal Config (JSON)</label>
+                        <textarea id="DEAL_CONFIG" name="DEAL_CONFIG" rows="6" 
+                                  placeholder='{"pubmatic":{"price":10,"dealids":["PubDeal1"]}}'></textarea>
+                        <small>JSON format: {"bidder":{"price":10,"dealids":["deal1"]}} or {"bidder":{"price":10,"prefix":["abc"],"dealpriority":[5]}}</small>
+                    </div>
+
+                    <div class="form-group" id="adpod-cache-url-group" style="display: none;">
+                        <label for="ADPOD_CREATIVE_CACHE_URL">ADPOD Creative Cache URL</label>
+                        <input type="text" id="ADPOD_CREATIVE_CACHE_URL" 
+                               name="ADPOD_CREATIVE_CACHE_URL" 
+                               value="https://ow.pubmatic.com" 
+                               placeholder="https://ow.pubmatic.com">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="loadDefaults()">Load Defaults</button>
+                <button type="button" class="btn-secondary" onclick="validateForm()">Validate</button>
+                <button type="button" class="btn-secondary" onclick="showLoadConfigModal()">Load Saved Config</button>
+                <button type="button" class="btn-secondary" onclick="showSaveConfigModal()">Save Configuration</button>
+                <button type="submit" class="btn-primary">Generate Line Items</button>
+            </div>
+        </form>
+
+        <!-- Save Config Modal -->
+        <div id="saveConfigModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close" onclick="closeSaveConfigModal()">&times;</span>
+                <h2>Save Configuration</h2>
+                <form id="saveConfigForm">
+                    <div class="form-group">
+                        <label for="save_config_name">Configuration Name *</label>
+                        <input type="text" id="save_config_name" required placeholder="e.g., Production Setup">
+                    </div>
+                    <div class="form-group">
+                        <label for="save_client_name">Client Name</label>
+                        <input type="text" id="save_client_name" placeholder="e.g., ABC Company">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="closeSaveConfigModal()">Cancel</button>
+                        <button type="submit" class="btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Load Config Modal -->
+        <div id="loadConfigModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close" onclick="closeLoadConfigModal()">&times;</span>
+                <h2>Load Saved Configuration</h2>
+                <div id="configListContainer">
+                    <p>Loading configurations...</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="result-container" style="display: none;">
+            <h2>Result</h2>
+            
+            <!-- Progress Bar -->
+            <div id="progress-container" style="display: none;">
+                <div class="progress-info">
+                    <span id="progress-status">Processing...</span>
+                    <span id="progress-percentage">0%</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+                <div id="progress-details" class="progress-details"></div>
+            </div>
+            
+            <div id="result-message"></div>
+            <pre id="result-output"></pre>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

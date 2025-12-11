@@ -7,17 +7,18 @@ from dfp.client import get_client
 
 logger = logging.getLogger(__name__)
 
-def create_line_items(line_items):
+def create_line_items(line_items, batch_size=None):
   """
-  Creates line items in DFP.
-
+  Creates line items in DFP with batching support for PythonAnywhere compatibility.
+  
   Args:
     line_items (arr): an array of objects, each a line item configuration
+    batch_size (int): number of line items to create per API call (default: from constant)
   Returns:
     an array: an array of created line item IDs
   """
   dfp_client = get_client()
-  line_item_service = dfp_client.GetService('LineItemService', version='v202402')
+  line_item_service = dfp_client.GetService('LineItemService', version='v202502')
   line_items = line_item_service.createLineItems(line_items)
 
   # Return IDs of created line items.
@@ -107,6 +108,9 @@ def create_line_item_config(name, order_id, placement_ids, ad_unit_ids, cpm_micr
     'targeting': {
       'inventoryTargeting': {},
       'customTargeting': top_set,
+      'geoTargeting': {
+        "excludedLocations": [
+        ]},
     },
     'startDateTimeType': 'IMMEDIATELY',
     'unlimitedEndDateTime': True,

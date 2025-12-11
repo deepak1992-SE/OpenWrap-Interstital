@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - PubMatic Internal Team</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><div class="pubmatic-logo"><img src="https://pubmatic.com/wp-content/themes/pubmatic/imgs/logo-black.svg" alt="PubMatic Logo" onerror="this.style.display=\'none\'"></div>Create New User<span class="internal-team-badge">Internal Team</span></h1>
+            <p class="subtitle">Admin panel for user management</p>
+            <div class="user-info">
+                <span>Logged in as: <strong>{{ current_user.username }}</strong></span>
+                <a href="/logout" class="logout-link">Logout</a>
+            </div>
+        </header>
+        
+        <div class="section">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <form method="POST" action="/admin/create-user">
+                <div class="form-group">
+                    <label for="username">Username *</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password *</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email (Optional)</label>
+                    <input type="email" id="email" name="email">
+                </div>
+                
+                <div class="form-actions">
+                    <a href="/" class="btn-secondary">Back to Main</a>
+                    <button type="submit" class="btn-primary">Create User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+

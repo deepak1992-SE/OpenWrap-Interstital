@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Start the DFP Line Item Generator Web UI
+
+echo "Starting DFP Line Item Generator Web UI..."
+echo ""
+echo "The web interface will be available at:"
+echo "  http://localhost:5000"
+echo ""
+echo "Press Ctrl+C to stop the server"
+echo ""
+
+python app.py
+
+
+
