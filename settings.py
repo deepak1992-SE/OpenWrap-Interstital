@@ -8,7 +8,7 @@ GOOGLEADS_YAML_FILE = os.path.join(ROOT_DIR, 'googleads.yaml')
 #########################################################################
 
 DFP_ORDER_NAME = 'Interstitial_unsafe_New_v09'
-DFP_USER_EMAIL_ADDRESS = 'jatin@rediads.com'
+DFP_USER_EMAIL_ADDRESS = ''
 DFP_ADVERTISER_NAME = 'OpenWrap'
 DFP_ADVERTISER_TYPE = 'ADVERTISER'
 DFP_LINEITEM_TYPE = 'PRICE_PRIORITY'
