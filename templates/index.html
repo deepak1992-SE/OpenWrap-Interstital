@@ -461,6 +461,16 @@
             
             <div id="result-message"></div>
             <pre id="result-output"></pre>
+            
+            <div id="console-input-container" style="display: none; margin-top: 10px; border-top: 1px solid #ccc; padding-top: 10px;">
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="console-input" placeholder="Type here (e.g., y/n)..." 
+                           style="flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;">
+                    <button class="btn-primary" id="console-send-btn">Send</button>
+                    <button class="btn-secondary" id="console-yes-btn">Yes (y)</button>
+                    <button class="btn-secondary" id="console-no-btn">No (n)</button>
+                </div>
+            </div>
         </div>
     </div>
 

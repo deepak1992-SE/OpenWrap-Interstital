@@ -75,6 +75,8 @@ login_manager.login_message = 'Please log in to access this page.'
 
 # Progress tracking storage (in-memory)
 progress_store = {}
+# Active subprocesses storage for interactive input
+active_processes = {}
 # Use an RLock to be safe if the same thread ever needs to acquire the lock multiple times,
 # but in general we try to centralize locking inside update_progress.
 progress_lock = threading.RLock()
@@ -996,6 +998,39 @@ def generate_line_items():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/send-input', methods=['POST'])
+@login_required
+def send_command_input():
+    """Send standard input to a running job subprocess"""
+    try:
+        data = request.get_json()
+        job_id = data.get('job_id')
+        input_text = data.get('input', '')
+        
+        if not job_id:
+            return jsonify({'error': 'Job ID is required'}), 400
+            
+        with progress_lock:
+            process = active_processes.get(job_id)
+            
+        if not process:
+            return jsonify({'error': 'Job process not found or no longer active'}), 404
+            
+        # Write input to stdin
+        try:
+            logger.info(f"[JOB {job_id}] Writing input to stdin: '{input_text}'")
+            process.stdin.write(input_text + '\n')
+            process.stdin.flush()
+            return jsonify({'success': True, 'message': 'Input sent successfully'})
+        except Exception as e:
+            logger.error(f"[JOB {job_id}] Failed to write to stdin: {e}")
+            return jsonify({'error': f'Failed to write input: {str(e)}'}), 500
+            
+    except Exception as e:
+        logger.error(f"Error in send_command_input: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 def process_generate(job_id, data):
     """Process generation in background thread"""
     logger.info(f"[JOB {job_id}] Starting process_generate")
@@ -1197,6 +1232,9 @@ def process_generate(job_id, data):
                     )
                     logger.info(f"[JOB {job_id}] Subprocess started with PID: {process.pid}")
                     logger.info(f"[JOB {job_id}] Waiting for OpenWrap subprocess output...")
+                    # Register active process for input handling
+                    with progress_lock:
+                        active_processes[job_id] = process
                     
                     # Monitor process output for progress updates
                     # We'll keep the full log in memory for this job and expose it via the `output`
@@ -1204,7 +1242,6 @@ def process_generate(job_id, data):
                     output_lines = []
                     current_batch = 0
                     line_count = 0
-                    confirmation_sent = False
                     update_progress('processing', 20, 'Subprocess started, waiting for output...', 0, total_batches)
                     
                     while True:
@@ -1225,17 +1262,6 @@ def process_generate(job_id, data):
                             
                             # Use the full accumulated log so the frontend sees everything
                             output_text = ''.join(output_lines)
-                            
-                            # Check for confirmation prompt and send 'y' if not already sent
-                            if ('Is this correct' in line or 'correct?' in line.lower()) and not confirmation_sent:
-                                logger.info(f"[JOB {job_id}] Confirmation prompt detected, sending 'y'...")
-                                try:
-                                    process.stdin.write('y\n')
-                                    process.stdin.flush()
-                                    confirmation_sent = True
-                                    logger.info(f"[JOB {job_id}] Confirmation 'y' sent successfully")
-                                except Exception as stdin_error:
-                                    logger.error(f"[JOB {job_id}] Error writing to stdin: {stdin_error}")
                             
                             # Check for batch progress indicators
                             if 'Processing batch' in line or ('batch' in line.lower() and ('/' in line or 'Processing' in line)):
@@ -1317,10 +1343,7 @@ def process_generate(job_id, data):
                     
                     # Close stdin after reading all output
                     try:
-                        if not confirmation_sent:
-                            logger.warning(f"[JOB {job_id}] Confirmation was never sent, sending now...")
-                            process.stdin.write('y\n')
-                            process.stdin.flush()
+                        active_processes.pop(job_id, None)
                         process.stdin.close()
                     except:
                         pass

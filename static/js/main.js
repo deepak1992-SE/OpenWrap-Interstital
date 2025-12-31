@@ -1118,10 +1118,10 @@ function pollProgress(jobId) {
                 const currentBatch = data.current_batch || 0;
                 const totalBatches = data.total_batches || 0;
 
-                console.log('Progress update:', { status, progress, message, currentBatch, totalBatches });
+                console.log('Progress update:', { status: data.status, progress, message, currentBatch, totalBatches });
 
                 // Update progress bar
-                updateProgressBar(progress, message, status, currentBatch, totalBatches);
+                updateProgressBar(progress, message, data.status, currentBatch, totalBatches);
 
                 // Update output if available
                 if (data.output) {
@@ -1132,7 +1132,7 @@ function pollProgress(jobId) {
                 }
 
                 // Stop polling if completed or failed
-                if (status === 'completed' || status === 'failed') {
+                if (data.status === 'completed' || data.status === 'failed') {
                     clearInterval(progressInterval);
 
                     const submitButton = document.querySelector('button[type="submit"]');
@@ -1143,7 +1143,7 @@ function pollProgress(jobId) {
 
                     const resultMessage = document.getElementById('result-message');
                     if (resultMessage) {
-                        if (status === 'completed') {
+                        if (data.status === 'completed') {
                             resultMessage.className = 'success';
                             resultMessage.textContent = '✓ ' + (message || 'Line items created successfully!');
                         } else {
