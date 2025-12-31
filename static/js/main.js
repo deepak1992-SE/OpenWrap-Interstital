@@ -1,5 +1,5 @@
 // Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Set username display if available
     const usernameDisplay = document.getElementById('username-display');
     if (usernameDisplay) {
@@ -23,10 +23,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Fallback if API not available - username should come from template
             });
     }
-    
+
     // Load defaults on page load
     loadDefaults();
-    
+
     // Setup save config form handler
     const saveConfigForm = document.getElementById('saveConfigForm');
     if (saveConfigForm) {
@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // CSV file selector handler
     const csvFileSelector = document.getElementById('csv-file-selector');
     if (csvFileSelector) {
-        csvFileSelector.addEventListener('change', function() {
+        csvFileSelector.addEventListener('change', function () {
             const filename = this.value;
             if (filename) {
                 document.getElementById('OPENWRAP_BUCKET_CSV').value = filename;
@@ -108,27 +108,27 @@ function handleKeyJsonUpload(event) {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.client_email) {
-            const preview = document.getElementById('key-json-preview');
-            preview.innerHTML = `<div class="file-preview-success">
+        .then(response => response.json())
+        .then(data => {
+            if (data.client_email) {
+                const preview = document.getElementById('key-json-preview');
+                preview.innerHTML = `<div class="file-preview-success">
                 <strong>✓ File uploaded:</strong> ${data.filename}<br>
                 <strong>Service Account:</strong> ${data.client_email}
             </div>`;
-        } else {
-            alert('Error: ' + (data.error || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error uploading file');
-    });
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error uploading file');
+        });
 }
 
 function handleSetupTypeChange() {
     const setupType = document.getElementById('OPENWRAP_SETUP_TYPE').value;
-    
+
     // Show/hide fields based on setup type
     const creativeTemplateGroup = document.getElementById('creative-template-group');
     const nativeVarGroup = document.getElementById('native-var-group');
@@ -216,7 +216,7 @@ function handleSetupTypeChange() {
 
     // Hide bidder code for certain types
     if (bidderCodeGroup) {
-        if (setupType === 'JWPLAYER' || setupType === 'IN_APP' || 
+        if (setupType === 'JWPLAYER' || setupType === 'IN_APP' ||
             setupType === 'IN_APP_VIDEO' || setupType === 'IN_APP_NATIVE') {
             bidderCodeGroup.style.display = 'none';
         } else {
@@ -269,7 +269,7 @@ function handleDealLineitemChange() {
 function handleDealConfigTypeChange() {
     const dealConfigType = document.getElementById('DEAL_CONFIG_TYPE').value;
     const dealConfigTextarea = document.getElementById('DEAL_CONFIG');
-    
+
     if (dealConfigTextarea) {
         if (dealConfigType === 'DEALID') {
             dealConfigTextarea.placeholder = '{"pubmatic":{"price":10,"dealids":["PubDeal1","PubDeal2"]}}';
@@ -290,24 +290,24 @@ function handleCSVUpload(event) {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.filename && data.data) {
-            document.getElementById('OPENWRAP_BUCKET_CSV').value = data.filename;
-            // Update selector
-            loadCSVFiles().then(() => {
-                document.getElementById('csv-file-selector').value = data.filename;
-                // Load CSV data into table
-                populateCSVTable(data.data);
-            });
-        } else {
-            alert('Error uploading file: ' + (data.error || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error uploading file');
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.filename && data.data) {
+                document.getElementById('OPENWRAP_BUCKET_CSV').value = data.filename;
+                // Update selector
+                loadCSVFiles().then(() => {
+                    document.getElementById('csv-file-selector').value = data.filename;
+                    // Load CSV data into table
+                    populateCSVTable(data.data);
+                });
+            } else {
+                alert('Error uploading file: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error uploading file');
+        });
 }
 
 // CSV Management Functions
@@ -339,18 +339,18 @@ function loadCSVToTable(filename) {
         },
         body: JSON.stringify({ filename: filename })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.data) {
-            populateCSVTable(data.data);
-        } else {
-            alert('Error loading CSV: ' + (data.error || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error loading CSV:', error);
-        alert('Error loading CSV file');
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.data) {
+                populateCSVTable(data.data);
+            } else {
+                alert('Error loading CSV: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error loading CSV:', error);
+            alert('Error loading CSV file');
+        });
 }
 
 function populateCSVTable(csvData) {
@@ -358,7 +358,7 @@ function populateCSVTable(csvData) {
     if (!tbody) return;
 
     tbody.innerHTML = '';
-    
+
     if (csvData && csvData.length > 0) {
         csvData.forEach((row, index) => {
             addCSVRowToTable(row, index);
@@ -372,7 +372,7 @@ function populateCSVTable(csvData) {
 function addCSVRow() {
     const tbody = document.getElementById('csv-table-body');
     if (!tbody) return;
-    
+
     const rowCount = tbody.children.length;
     addCSVRowToTable({ start_range: '', end_range: '', granularity: '', rate_id: '' }, rowCount);
 }
@@ -412,7 +412,7 @@ function saveCSVTable() {
 
     const csvData = [];
     const rows = tbody.querySelectorAll('tr');
-    
+
     rows.forEach(row => {
         const cells = row.querySelectorAll('.csv-cell');
         if (cells.length >= 4) {
@@ -422,7 +422,7 @@ function saveCSVTable() {
                 granularity: cells[2].value.trim(),
                 rate_id: cells[3].value.trim()
             };
-            
+
             // Validate row
             if (validateCSVRow(rowData)) {
                 csvData.push(rowData);
@@ -447,18 +447,18 @@ function saveCSVTable() {
             data: csvData
         })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.message) {
-            alert('CSV file saved successfully!');
-        } else {
-            alert('Error saving CSV: ' + (data.error || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error saving CSV:', error);
-        alert('Error saving CSV file');
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                alert('CSV file saved successfully!');
+            } else {
+                alert('Error saving CSV: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error saving CSV:', error);
+            alert('Error saving CSV file');
+        });
 }
 
 function validateCSVRow(row) {
@@ -466,19 +466,19 @@ function validateCSVRow(row) {
     if (!row.start_range || !row.end_range) {
         return false;
     }
-    
+
     const startRange = parseFloat(row.start_range);
     const endRange = parseFloat(row.end_range);
-    
+
     // Validate ranges
     if (isNaN(startRange) || isNaN(endRange) || startRange < 0 || endRange < 0) {
         return false;
     }
-    
+
     if (startRange >= endRange) {
         return false;
     }
-    
+
     // Granularity can be -1 or a positive number
     if (row.granularity && row.granularity !== '-1') {
         const granularity = parseFloat(row.granularity);
@@ -486,7 +486,7 @@ function validateCSVRow(row) {
             return false;
         }
     }
-    
+
     // Rate ID should be 1 or 2
     if (row.rate_id) {
         const rateId = parseInt(row.rate_id);
@@ -494,7 +494,7 @@ function validateCSVRow(row) {
             return false;
         }
     }
-    
+
     return true;
 }
 
@@ -510,7 +510,7 @@ function formatFileSize(bytes) {
 function addSize() {
     const container = document.getElementById('sizes-container');
     if (!container) return;
-    
+
     const sizeInput = document.createElement('div');
     sizeInput.className = 'size-input';
     sizeInput.innerHTML = `
@@ -525,7 +525,7 @@ function addSize() {
 function removeSize(button) {
     const container = document.getElementById('sizes-container');
     if (!container) return;
-    
+
     if (container.children.length > 1) {
         button.parentElement.remove();
     } else {
@@ -613,7 +613,7 @@ function loadDefaults() {
         });
 }
 
-function validateForm() {
+function validateForm(silent = false) {
     const form = document.getElementById('lineItemForm');
     if (!form.checkValidity()) {
         form.reportValidity();
@@ -631,7 +631,7 @@ function validateForm() {
             sizes.push({ width: width, height: height });
         }
     });
-    
+
     if (sizes.length === 0) {
         alert('At least one placement size (width x height) is required.');
         return false;
@@ -651,12 +651,12 @@ function validateForm() {
     if (setupType === 'ADPOD') {
         const videoLengths = document.getElementById('VIDEO_LENGTHS').value.trim();
         const adpodSlots = document.getElementById('ADPOD_SLOTS').value.trim();
-        
+
         if (!videoLengths) {
             alert('Video Lengths is required for ADPOD setup type');
             return false;
         }
-        
+
         if (!adpodSlots) {
             alert('ADPOD Slots is required for ADPOD setup type');
             return false;
@@ -671,19 +671,22 @@ function validateForm() {
         }
     }
 
+    if (!silent) {
+        alert('Validation Successful! All fields are correctly formatted.');
+    }
     return true;
 }
 
 function handleFormSubmit(event) {
     event.preventDefault();
 
-    if (!validateForm()) {
+    if (!validateForm(true)) {
         return;
     }
 
     // Collect form data
     const formData = collectFormData();
-    
+
     // Include client_name in form data
     const clientNameInput = document.getElementById('client_name');
     if (clientNameInput) {
@@ -701,12 +704,12 @@ function handleFormSubmit(event) {
     const progressContainer = document.getElementById('progress-container');
     const resultMessage = document.getElementById('result-message');
     const resultOutput = document.getElementById('result-output');
-    
+
     resultContainer.style.display = 'block';
     progressContainer.style.display = 'block';
     resultMessage.textContent = '';
     resultOutput.textContent = '';
-    
+
     // Reset progress bar
     updateProgressBar(0, 'Initializing...', 'starting', 0, 0);
     console.log('Progress bar initialized, starting request...');
@@ -722,61 +725,61 @@ function handleFormSubmit(event) {
         body: JSON.stringify(formData),
         credentials: 'same-origin'
     })
-    .then(response => {
-        if (!response.ok) {
-            if (response.status === 401 || response.status === 403) {
-                window.location.href = '/login';
-                return;
+        .then(response => {
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    window.location.href = '/login';
+                    return;
+                }
+                return response.text().then(text => {
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${text.substring(0, 100)}`);
+                });
             }
-            return response.text().then(text => {
-                throw new Error(`HTTP error! status: ${response.status}, message: ${text.substring(0, 100)}`);
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.job_id) {
-            // Start polling for progress
-            pollProgress(data.job_id);
-        } else {
-            // Fallback to old behavior if no job_id
+            return response.json();
+        })
+        .then(data => {
+            if (data.job_id) {
+                // Start polling for progress
+                pollProgress(data.job_id);
+            } else {
+                // Fallback to old behavior if no job_id
+                submitButton.disabled = false;
+                submitButton.textContent = originalText;
+
+                if (data.success) {
+                    resultMessage.className = 'success';
+                    resultMessage.textContent = '✓ ' + (data.message || 'Line items created successfully!');
+                } else {
+                    resultMessage.className = 'error';
+                    resultMessage.textContent = '✗ ' + (data.error || 'Failed to create line items');
+                }
+                resultOutput.textContent = data.output || data.error || '';
+                progressContainer.style.display = 'none';
+            }
+
+            // Scroll to result
+            resultContainer.scrollIntoView({ behavior: 'smooth' });
+        })
+        .catch(error => {
             submitButton.disabled = false;
             submitButton.textContent = originalText;
-            
-            if (data.success) {
-                resultMessage.className = 'success';
-                resultMessage.textContent = '✓ ' + (data.message || 'Line items created successfully!');
-            } else {
-                resultMessage.className = 'error';
-                resultMessage.textContent = '✗ ' + (data.error || 'Failed to create line items');
-            }
-            resultOutput.textContent = data.output || data.error || '';
             progressContainer.style.display = 'none';
-        }
-        
-        // Scroll to result
-        resultContainer.scrollIntoView({ behavior: 'smooth' });
-    })
-    .catch(error => {
-        submitButton.disabled = false;
-        submitButton.textContent = originalText;
-        progressContainer.style.display = 'none';
 
-        resultMessage.className = 'error';
-        resultMessage.textContent = '✗ Error: ' + error.message;
-        
-        let errorText = error.stack || error.toString();
-        if (error.message.includes('Failed to fetch')) {
-            errorText = 'Unable to connect to server. Please ensure the Flask app is running.\n\n' +
-                       'To start the server, run: python3 app.py\n\n' +
-                       'Error details: ' + error.message;
-        }
-        resultOutput.textContent = errorText;
-        
-        resultContainer.scrollIntoView({ behavior: 'smooth' });
-        
-        console.error('Form submission error:', error);
-    });
+            resultMessage.className = 'error';
+            resultMessage.textContent = '✗ Error: ' + error.message;
+
+            let errorText = error.stack || error.toString();
+            if (error.message.includes('Failed to fetch')) {
+                errorText = 'Unable to connect to server. Please ensure the Flask app is running.\n\n' +
+                    'To start the server, run: python3 app.py\n\n' +
+                    'Error details: ' + error.message;
+            }
+            resultOutput.textContent = errorText;
+
+            resultContainer.scrollIntoView({ behavior: 'smooth' });
+
+            console.error('Form submission error:', error);
+        });
 }
 
 function collectFormData() {
@@ -817,13 +820,13 @@ function collectFormData() {
             sizes.push({ width: width, height: height });
         }
     });
-    
+
     // Ensure at least one size is provided
     if (sizes.length === 0) {
         console.warn('No sizes provided, adding default size');
         sizes.push({ width: '320', height: '480' });
     }
-    
+
     data.DFP_PLACEMENT_SIZES = sizes;
 
     // Collect Prebid price buckets
@@ -860,12 +863,12 @@ function showSaveConfigModal() {
     const modal = document.getElementById('saveConfigModal');
     const clientNameInput = document.getElementById('save_client_name');
     const formClientName = document.getElementById('client_name');
-    
+
     // Pre-fill client name from form
     if (formClientName && formClientName.value) {
         clientNameInput.value = formClientName.value;
     }
-    
+
     modal.style.display = 'block';
 }
 
@@ -876,16 +879,16 @@ function closeSaveConfigModal() {
 
 function handleSaveConfig(event) {
     event.preventDefault();
-    
+
     const configName = document.getElementById('save_config_name').value;
     const clientName = document.getElementById('save_client_name').value;
     const formData = collectFormData();
-    
+
     if (!configName) {
         alert('Please enter a configuration name');
         return;
     }
-    
+
     fetch('/api/save-config', {
         method: 'POST',
         headers: {
@@ -898,38 +901,38 @@ function handleSaveConfig(event) {
             config_data: formData
         })
     })
-    .then(response => {
-        if (!response.ok) {
-            if (response.status === 401 || response.status === 403) {
-                window.location.href = '/login';
-                return;
+        .then(response => {
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    window.location.href = '/login';
+                    return;
+                }
+                return response.text().then(text => {
+                    throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
+                });
             }
-            return response.text().then(text => {
-                throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data && data.success) {
-            alert('Configuration saved successfully!');
-            closeSaveConfigModal();
-        } else {
-            alert('Error: ' + (data?.error || 'Failed to save configuration'));
-        }
-    })
-    .catch(error => {
-        alert('Error saving configuration: ' + error.message);
-    });
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.success) {
+                alert('Configuration saved successfully!');
+                closeSaveConfigModal();
+            } else {
+                alert('Error: ' + (data?.error || 'Failed to save configuration'));
+            }
+        })
+        .catch(error => {
+            alert('Error saving configuration: ' + error.message);
+        });
 }
 
 function showLoadConfigModal() {
     const modal = document.getElementById('loadConfigModal');
     const container = document.getElementById('configListContainer');
-    
+
     modal.style.display = 'block';
     container.innerHTML = '<p>Loading configurations...</p>';
-    
+
     fetch('/api/saved-configs', {
         credentials: 'same-origin'
     })
@@ -951,12 +954,12 @@ function showLoadConfigModal() {
                 container.innerHTML = '<p class="error">Error: ' + data.error + '</p>';
                 return;
             }
-            
+
             if (data.configs.length === 0) {
                 container.innerHTML = '<p>No saved configurations found.</p>';
                 return;
             }
-            
+
             let html = '<div class="config-list">';
             data.configs.forEach(config => {
                 const createdDate = new Date(config.created_at).toLocaleDateString();
@@ -1010,7 +1013,7 @@ function loadConfig(configId) {
                 alert('Error: ' + data.error);
                 return;
             }
-            
+
             if (data.config) {
                 // Populate all form fields with loaded config
                 populateFormFromData(data.config);
@@ -1027,35 +1030,35 @@ function deleteConfig(configId) {
     if (!confirm('Are you sure you want to delete this configuration?')) {
         return;
     }
-    
+
     fetch(`/api/delete-config/${configId}`, {
         method: 'DELETE',
         credentials: 'same-origin'
     })
-    .then(response => {
-        if (!response.ok) {
-            if (response.status === 401 || response.status === 403) {
-                window.location.href = '/login';
-                return;
+        .then(response => {
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    window.location.href = '/login';
+                    return;
+                }
+                return response.text().then(text => {
+                    throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
+                });
             }
-            return response.text().then(text => {
-                throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (!data) return;
-        if (data.success) {
-            // Refresh config list
-            showLoadConfigModal();
-        } else {
-            alert('Error: ' + (data.error || 'Failed to delete configuration'));
-        }
-    })
-    .catch(error => {
-        alert('Error deleting configuration: ' + error.message);
-    });
+            return response.json();
+        })
+        .then(data => {
+            if (!data) return;
+            if (data.success) {
+                // Refresh config list
+                showLoadConfigModal();
+            } else {
+                alert('Error: ' + (data.error || 'Failed to delete configuration'));
+            }
+        })
+        .catch(error => {
+            alert('Error deleting configuration: ' + error.message);
+        });
 }
 
 function populateFormFromData(configData) {
@@ -1072,7 +1075,7 @@ function populateFormFromData(configData) {
             }
         }
     });
-    
+
     // Handle special cases like placement sizes
     if (configData.DFP_PLACEMENT_SIZES && Array.isArray(configData.DFP_PLACEMENT_SIZES)) {
         // This would need to be handled by the placement sizes UI
@@ -1095,77 +1098,77 @@ function pollProgress(jobId) {
         fetch(`/api/progress/${jobId}`, {
             credentials: 'same-origin'
         })
-        .then(response => {
-            if (!response.ok) {
-                if (response.status === 401 || response.status === 403) {
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                        clearInterval(progressInterval);
+                        window.location.href = '/login';
+                        return null;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!data) return;
+
+                const status = data.status || 'processing';
+                const progress = data.progress || 0;
+                const message = data.message || 'Processing...';
+                const currentBatch = data.current_batch || 0;
+                const totalBatches = data.total_batches || 0;
+
+                console.log('Progress update:', { status, progress, message, currentBatch, totalBatches });
+
+                // Update progress bar
+                updateProgressBar(progress, message, status, currentBatch, totalBatches);
+
+                // Update output if available
+                if (data.output) {
+                    const resultOutput = document.getElementById('result-output');
+                    if (resultOutput) {
+                        resultOutput.textContent = data.output;
+                    }
+                }
+
+                // Stop polling if completed or failed
+                if (status === 'completed' || status === 'failed') {
                     clearInterval(progressInterval);
-                    window.location.href = '/login';
-                    return null;
+
+                    const submitButton = document.querySelector('button[type="submit"]');
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Generate Line Items';
+                    }
+
+                    const resultMessage = document.getElementById('result-message');
+                    if (resultMessage) {
+                        if (status === 'completed') {
+                            resultMessage.className = 'success';
+                            resultMessage.textContent = '✓ ' + (message || 'Line items created successfully!');
+                        } else {
+                            resultMessage.className = 'error';
+                            resultMessage.textContent = '✗ ' + (message || 'Failed to create line items');
+                        }
+                    }
                 }
-                throw new Error(`HTTP ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (!data) return;
-            
-            const status = data.status || 'processing';
-            const progress = data.progress || 0;
-            const message = data.message || 'Processing...';
-            const currentBatch = data.current_batch || 0;
-            const totalBatches = data.total_batches || 0;
-            
-            console.log('Progress update:', { status, progress, message, currentBatch, totalBatches });
-            
-            // Update progress bar
-            updateProgressBar(progress, message, status, currentBatch, totalBatches);
-            
-            // Update output if available
-            if (data.output) {
-                const resultOutput = document.getElementById('result-output');
-                if (resultOutput) {
-                    resultOutput.textContent = data.output;
-                }
-            }
-            
-            // Stop polling if completed or failed
-            if (status === 'completed' || status === 'failed') {
+            })
+            .catch(error => {
+                console.error('Error polling progress:', error);
                 clearInterval(progressInterval);
-                
+
                 const submitButton = document.querySelector('button[type="submit"]');
                 if (submitButton) {
                     submitButton.disabled = false;
                     submitButton.textContent = 'Generate Line Items';
                 }
-                
+
                 const resultMessage = document.getElementById('result-message');
                 if (resultMessage) {
-                    if (status === 'completed') {
-                        resultMessage.className = 'success';
-                        resultMessage.textContent = '✓ ' + (message || 'Line items created successfully!');
-                    } else {
-                        resultMessage.className = 'error';
-                        resultMessage.textContent = '✗ ' + (message || 'Failed to create line items');
-                    }
+                    resultMessage.className = 'error';
+                    resultMessage.textContent = '✗ Error: Failed to get progress updates';
                 }
-            }
-        })
-        .catch(error => {
-            console.error('Error polling progress:', error);
-            clearInterval(progressInterval);
-            
-            const submitButton = document.querySelector('button[type="submit"]');
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.textContent = 'Generate Line Items';
-            }
-            
-            const resultMessage = document.getElementById('result-message');
-            if (resultMessage) {
-                resultMessage.className = 'error';
-                resultMessage.textContent = '✗ Error: Failed to get progress updates';
-            }
-        });
+            });
     }, 1000); // Poll every second
 }
 
@@ -1174,9 +1177,9 @@ function updateProgressBar(progress, message, status, currentBatch, totalBatches
     const progressBarFill = document.getElementById('progress-bar');
     const progressPercentage = document.getElementById('progress-percentage');
     const progressStatus = document.getElementById('progress-status');
-    
+
     console.log('Updating progress bar:', { progressBarFill: !!progressBarFill, progressPercentage: !!progressPercentage, progressStatus: !!progressStatus, progress, message });
-    
+
     if (progressBarFill) {
         const width = Math.min(100, Math.max(0, progress));
         progressBarFill.style.width = width + '%';
@@ -1184,13 +1187,13 @@ function updateProgressBar(progress, message, status, currentBatch, totalBatches
     } else {
         console.error('progress-bar element not found!');
     }
-    
+
     if (progressPercentage) {
         progressPercentage.textContent = Math.round(progress) + '%';
     } else {
         console.error('progress-percentage element not found!');
     }
-    
+
     if (progressStatus) {
         let statusText = message || 'Processing...';
         if (totalBatches > 1 && currentBatch > 0) {
@@ -1203,7 +1206,7 @@ function updateProgressBar(progress, message, status, currentBatch, totalBatches
 }
 
 // Close modals when clicking outside
-window.onclick = function(event) {
+window.onclick = function (event) {
     const saveModal = document.getElementById('saveConfigModal');
     const loadModal = document.getElementById('loadConfigModal');
     if (event.target === saveModal) {
