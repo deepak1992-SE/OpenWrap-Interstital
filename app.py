@@ -972,7 +972,7 @@ def generate_line_items():
         
         # Start processing in background thread (only if not on PythonAnywhere)
         # On PythonAnywhere, use Always-on task worker instead
-        use_thread = os.environ.get('USE_BACKGROUND_THREAD', 'false').lower() == 'true'
+        use_thread = os.environ.get('USE_BACKGROUND_THREAD', 'true').lower() == 'true'
         if use_thread:
             logger.info(f"Starting background thread for job {job_id}")
             thread = threading.Thread(target=process_generate, args=(job_id, data))
